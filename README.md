@@ -109,6 +109,21 @@ Les deux captures : `mauvais.py` dans l'éditeur marimo 0.25.2, toutes les cellu
 fenêtre de 1 280 px, la dernière cellule en haut de l'écran. Les erreurs silencieuses (`mo.md`
 sans `f`, mutation, case à cocher non liée, bouton sans effet) n'apparaissent que dans la seconde.
 
+### Brancher un LLM interne dans l'assistant de marimo
+
+marimo appelle un fournisseur personnalisé en API OpenAI (`/chat/completions`). La sonde rejoue
+les requêtes de marimo 0.25.2 contre ton point d'accès et dit ce qui passe : chat (mode Manual),
+autocomplétion (`max_completion_tokens`), génération de cellule (`tool_choice: "required"`),
+modes Ask et Agent avec les outils du kit (`tool_choice: "auto"`). Elle propose ensuite le bloc
+de configuration.
+
+```bash
+mak sonde-llm https://llm.interne/v1 mon-modele --cle-env LLM_INTERNE_CLE --ca /chemin/ca-entreprise.pem
+```
+
+L'environnement qui lance marimo a besoin de `pydantic-ai-slim[openai]` (extra
+`marimo[recommended]`). Détail : `savoir/marimo/v0.25/editor-features/llm-interne-en-fournisseur-personnalise.md`.
+
 Code de sortie de `mak verifier` : 0 si aucune erreur, 1 sinon. Le rapport dit quelles étapes
 ont tourné ; une étape sautée n'est pas une vérification.
 

@@ -4,6 +4,7 @@
     mak cellules --notebook notebook.py < cellules.json     (liste JSON de corps de cellules)
     mak api mo.ui.slider            mak api --chercher cache
     mak regles [--reference]
+    mak sonde-llm https://llm.interne/v1 mon-modele --cle-env VARIABLE   (LLM pour l'assistant de marimo)
     mak mcp                         serveur MCP en entrée/sortie standard
     mak hook [--executer]           hook après écriture (Claude Code, Copilot)
     mak installer --skill agents --marimo [--hook-claude] [--mcp-claude] [--appliquer]
@@ -56,6 +57,16 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sous.add_parser("regles", help="le contrat d'écriture (court) ou la référence des règles")
     p.add_argument("--reference", action="store_true")
+
+    p = sous.add_parser("sonde-llm", help="ce qu'un LLM compatible OpenAI accepte des requêtes de marimo")
+    p.add_argument("base_url", help="ex. https://llm.interne/v1 (marimo y ajoute /chat/completions)")
+    p.add_argument("modele", help="nom du modèle tel que le point d'accès l'attend")
+    p.add_argument("--cle-env", help="variable d'environnement qui contient la clé (jamais la clé elle-même)")
+    p.add_argument("--entete", action="append", default=[], metavar="NOM:VALEUR", help="en-tête en plus (répétable)")
+    p.add_argument("--ca", help="fichier de certificats de l'entreprise (ca_bundle_path de marimo)")
+    p.add_argument("--sans-verification-tls", action="store_true", help="ne vérifier aucun certificat (essai seulement)")
+    p.add_argument("--nom", default="interne", help="nom du fournisseur dans marimo")
+    p.add_argument("--delai", type=int, default=60)
 
     sous.add_parser("mcp", help="serveur MCP en entrée/sortie standard")
 
@@ -112,6 +123,18 @@ def main(argv: list[str] | None = None) -> int:
 
         print(reference_regles() if args.reference else contrat_court(), end="")
         return 0
+
+    if args.commande == "sonde-llm":
+        from .sonde_llm import bloc_configuration, cle_depuis, en_texte, sonder
+
+        entetes = dict(e.split(":", 1) for e in args.entete if ":" in e)
+        entetes = {k.strip(): v.strip() for k, v in entetes.items()}
+        essais = sonder(args.base_url, args.modele, cle_depuis(args.cle_env), entetes, args.ca,
+                        not args.sans_verification_tls, args.delai)
+        print(en_texte(essais, bloc_configuration(args.nom, args.base_url, args.modele, args.cle_env,
+                                                  {k: v for k, v in entetes.items() if k.lower() != "authorization"},
+                                                  args.ca)))
+        return 0 if all(e.ok for e in essais) else 1
 
     if args.commande == "mcp":
         from .mcp_serveur import servir
