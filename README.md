@@ -15,7 +15,7 @@ Sur `tests/exemples/mauvais.py`, dix erreurs typiques d'un agent peu habitué à
 |---|---|
 | `marimo check --strict` (0.25.2) | rien : 0 problème |
 | `python mauvais.py` | la première erreur seulement, puis s'arrête |
-| `mak verifier mauvais.py` | 4 erreurs et 6 avertissements avant exécution, puis 3 cellules en erreur à l'exécution, chacune rapportée à sa cellule |
+| `mak verifier mauvais.py` | les dix, avant exécution (4 erreurs, 6 avertissements) ; l'exécution confirme les trois cellules qui plantent |
 
 Les règles (`AG001`…) visent ce qui revient : `.value` lu dans la cellule qui crée l'élément,
 `mo.md("{x}")` sans `f`, mutation d'un objet d'une autre cellule, élément d'interface rangé dans
@@ -92,12 +92,22 @@ mak api --chercher cache
 echo '["df[\"c\"] = 1"]' | mak cellules --notebook notebook.py
 ```
 
-Dans un notebook :
+Dans un notebook, une cellule montre le rapport du notebook lui-même, avec le message à
+renvoyer à l'agent (le kit doit être dans l'environnement du notebook, par exemple
+`uvx --with ./marimo-agent-kit marimo edit notebook.py`) :
 
 ```python
 import marimo_agent_kit as mak
 mak.audit()          # le notebook courant ; mak.audit("autre.py", executer=True)
 ```
+
+| Sans le kit : marimo montre les cellules qui plantent | Avec `mak.audit()` en dernière cellule |
+|---|---|
+| ![Fin de mauvais.py dans l'éditeur : deux cellules « Ancestor raised »](captures/audit-avant-1280.png) | ![La même fin de notebook, avec le rapport : gravité, règle, cellule, constat, correction](captures/audit-apres-1280.png) |
+
+Les deux captures : `mauvais.py` dans l'éditeur marimo 0.25.2, toutes les cellules lancées,
+fenêtre de 1 280 px, la dernière cellule en haut de l'écran. Les erreurs silencieuses (`mo.md`
+sans `f`, mutation, case à cocher non liée, bouton sans effet) n'apparaissent que dans la seconde.
 
 Code de sortie de `mak verifier` : 0 si aucune erreur, 1 sinon. Le rapport dit quelles étapes
 ont tourné ; une étape sautée n'est pas une vérification.

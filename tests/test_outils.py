@@ -187,7 +187,12 @@ class AvecMarimo(unittest.TestCase):
         self.assertEqual(mauvais.statut, "à corriger")
         confirmes = [d for d in mauvais.diagnostics if "Confirmé à l'exécution" in d.message]
         self.assertGreaterEqual(len(confirmes), 3, [d.message for d in mauvais.diagnostics])
-        propre = verifier(PROPRE, executer=True, bac_a_sable=None)
+        ancien = os.getcwd()
+        os.chdir(ICI.parent)
+        try:  # un chemin relatif : l'exécution part du dossier du notebook
+            propre = verifier(Path("tests/exemples/propre.py"), executer=True, bac_a_sable=None)
+        finally:
+            os.chdir(ancien)
         self.assertEqual(propre.statut, "propre", propre.en_texte(conseils=True))
 
 

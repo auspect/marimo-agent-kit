@@ -46,13 +46,16 @@ def audit(chemin: str | Path | None = None, executer: bool = False, conseils: bo
     )
     genre = "danger" if compte["erreur"] else "warn" if compte["avertissement"] else "success"
     lignes = [
-        {"gravité": d.gravite, "règle": f"{d.code} {d.nom}", "où": d.etiquette, "ligne": d.ligne or "",
+        {"gravité": d.gravite, "règle": f"{d.code} {d.nom}",
+         "où": f"{d.etiquette}, l. {d.ligne}" if d.ligne else d.etiquette,
          "constat": d.message, "correction": d.correction}
         for d in rapport.diagnostics if conseils or d.gravite != "conseil"
     ]
     morceaux = [mo.callout(resume, kind=genre)]
     if lignes:
         morceaux.append(mo.ui.table(lignes, selection=None, pagination=True, page_size=10, show_column_summaries=False,
+                                    wrapped_columns=["constat", "correction"],
+                                    column_widths={"gravité": 110, "règle": 190, "où": 130},
                                     label="Constats"))
     if compte["erreur"] or compte["avertissement"]:
         morceaux.append(mo.accordion({"Message à renvoyer à ton agent": mo.md(f"```text\n{message_pour_agent(rapport)}\n```")}))

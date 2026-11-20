@@ -18,6 +18,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -149,16 +150,19 @@ def lancer_execution(carnet: Carnet, commande: list[str], delai: int = 300, bac_
         options = ["--sandbox=pixi"] if "[tool.pixi" in carnet.entete and shutil.which("pixi") else ["--sandbox=uv"]
     elif bac_a_sable in ("uv", "pixi"):
         options = [f"--sandbox={bac_a_sable}"]
+    instantane = chemin.parent / "__marimo__" / "session" / f"{chemin.name}.json"
+    debut = time.time()
     try:
-        sortie = subprocess.run([*commande, "export", "session", "--force-overwrite", *options, str(chemin)],
+        sortie = subprocess.run([*commande, "export", "session", "--force-overwrite", *options, chemin.name],
                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=delai,
                                 cwd=chemin.parent)
     except subprocess.TimeoutExpired:
         return Etape(nom, "échec", f"plus de {delai} s : une cellule attend peut-être une saisie, ou le calcul est trop long"), []
     except OSError as erreur:
         return Etape(nom, "échec", str(erreur)), []
-    instantane = chemin.parent / "__marimo__" / "session" / f"{chemin.name}.json"
     try:
+        if instantane.stat().st_mtime < debut - 1:  # un instantané d'une exécution précédente ne prouve rien
+            raise OSError("instantané ancien")
         session = json.loads(instantane.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return Etape(nom, "échec", (sortie.stderr or sortie.stdout).strip()[-600:] or "aucun instantané écrit"), []
@@ -222,7 +226,7 @@ def verifier(chemin: str | Path, executer: bool = True, marimo: str | None = Non
     rapport.etapes.append(Etape("règles marimo-agent-kit", "fait", f"{len(regles)} constat(s)"))
     rapport.diagnostics += regles
     if executer:
-        if any(d.gravite == "erreur" and d.source == "marimo check" for d in diagnostics):
+        if any(d.source == "marimo check" and d.code.startswith("MB") for d in diagnostics):  # cassant
             rapport.etapes.append(Etape("exécution (marimo export session)", "sauté",
                                         "le notebook ne passe pas marimo check : corrige d'abord sa structure"))
         else:
