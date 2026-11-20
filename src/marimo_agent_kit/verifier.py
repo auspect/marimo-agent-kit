@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .carnet import Carnet, lire_fichier
+from .environnement import env_sobre
 from .regles import GRAVITES, Diagnostic, appliquer
 
 GRAVITE_MARIMO = {"breaking": "erreur", "runtime": "erreur", "formatting": "conseil"}
@@ -116,7 +117,8 @@ def lancer_marimo_check(carnet: Carnet, commande: list[str], delai: int = 120) -
         return Etape(nom, "échec", "marimo introuvable (ni dans le projet, ni dans ce Python, ni par uvx)"), []
     try:
         sortie = subprocess.run([*commande, "check", "--strict", "--format", "json", str(carnet.chemin)],
-                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=delai)
+                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=delai,
+                                env=env_sobre())
     except (OSError, subprocess.SubprocessError) as erreur:
         return Etape(nom, "échec", f"{type(erreur).__name__} : {erreur}"), []
     try:
@@ -155,7 +157,7 @@ def lancer_execution(carnet: Carnet, commande: list[str], delai: int = 300, bac_
     try:
         sortie = subprocess.run([*commande, "export", "session", "--force-overwrite", *options, chemin.name],
                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=delai,
-                                cwd=chemin.parent)
+                                cwd=chemin.parent, env=env_sobre())
     except subprocess.TimeoutExpired:
         return Etape(nom, "échec", f"plus de {delai} s : une cellule attend peut-être une saisie, ou le calcul est trop long"), []
     except OSError as erreur:

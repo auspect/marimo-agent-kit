@@ -15,6 +15,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .environnement import env_sobre
+
 SCRIPT = r'''
 import difflib, inspect, json, sys
 import marimo
@@ -119,7 +121,7 @@ def interroger(demande: str, mode: str = "decrire", depuis: Path | None = None) 
         return {"erreur": "aucun Python avec marimo, et uv est absent"}
     try:
         sortie = subprocess.run([*python, "-c", SCRIPT, demande, mode], capture_output=True, text=True,
-                                encoding="utf-8", errors="replace", timeout=120)
+                                encoding="utf-8", errors="replace", timeout=120, env=env_sobre())
     except (OSError, subprocess.SubprocessError) as erreur:
         return {"erreur": f"{type(erreur).__name__} : {erreur}"}
     try:

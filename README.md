@@ -124,6 +124,20 @@ mak sonde-llm https://llm.interne/v1 mon-modele --cle-env LLM_INTERNE_CLE --ca /
 L'environnement qui lance marimo a besoin de `pydantic-ai-slim[openai]` (extra
 `marimo[recommended]`). Détail : `savoir/marimo/v0.25/editor-features/llm-interne-en-fournisseur-personnalise.md`.
 
+### Ce qui sort du poste
+
+marimo n'a pas de télémétrie d'usage, mais `marimo edit` contacte marimo.io une fois par jour
+pour la version, et quelques fonctions sortent sur demande (recherche web du chat, préréglage
+MCP `context7`, complétion Copilot, `marimo new "invite"`). Le bilan du poste, et les lignes à
+poser en PowerShell ou en bash :
+
+```bash
+mak confidentialite
+```
+
+Le kit pose lui-même `MARIMO_SKIP_UPDATE_CHECK=1` et `PYDANTIC_AI_NO_BANNER=1` sur les marimo
+qu'il lance. Mesures : `savoir/marimo/v0.25/configuration/ce-qui-sort-du-poste.md`.
+
 Code de sortie de `mak verifier` : 0 si aucune erreur, 1 sinon. Le rapport dit quelles étapes
 ont tourné ; une étape sautée n'est pas une vérification.
 

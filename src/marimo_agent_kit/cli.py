@@ -5,6 +5,7 @@
     mak api mo.ui.slider            mak api --chercher cache
     mak regles [--reference]
     mak sonde-llm https://llm.interne/v1 mon-modele --cle-env VARIABLE   (LLM pour l'assistant de marimo)
+    mak confidentialite             ce qui sort du poste avec marimo, et quoi régler
     mak mcp                         serveur MCP en entrée/sortie standard
     mak hook [--executer]           hook après écriture (Claude Code, Copilot)
     mak installer --skill agents --marimo [--hook-claude] [--mcp-claude] [--appliquer]
@@ -67,6 +68,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sans-verification-tls", action="store_true", help="ne vérifier aucun certificat (essai seulement)")
     p.add_argument("--nom", default="interne", help="nom du fournisseur dans marimo")
     p.add_argument("--delai", type=int, default=60)
+
+    p = sous.add_parser("confidentialite", help="ce qui sort du poste avec marimo et son assistant, et quoi régler")
+    p.add_argument("--json", action="store_true")
 
     sous.add_parser("mcp", help="serveur MCP en entrée/sortie standard")
 
@@ -135,6 +139,20 @@ def main(argv: list[str] | None = None) -> int:
                                                   {k: v for k, v in entetes.items() if k.lower() != "authorization"},
                                                   args.ca)))
         return 0 if all(e.ok for e in essais) else 1
+
+    if args.commande == "confidentialite":
+        import os
+        from dataclasses import asdict
+
+        from .confidentialite import diagnostiquer, en_texte, infos_marimo
+
+        infos = infos_marimo()
+        constats = diagnostiquer(os.environ, infos)
+        if args.json:
+            print(json.dumps([asdict(c) for c in constats], ensure_ascii=False, indent=1))
+        else:
+            print(en_texte(constats, os.environ, (infos or {}).get("version")))
+        return 0 if not any(c.etat in ("à régler", "attention") for c in constats) else 1
 
     if args.commande == "mcp":
         from .mcp_serveur import servir
