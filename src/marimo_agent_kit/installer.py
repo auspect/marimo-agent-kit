@@ -1,0 +1,163 @@
+"""Poser le kit dans un projet, sans rien écraser.
+
+Par défaut, l'installateur dit ce qu'il ferait ; `--appliquer` écrit. Chaque morceau se
+demande à part :
+
+- `--skill agents|claude|github` : le skill, dans `.agents/skills/` (lu par la plupart des
+  agents), `.claude/skills/` ou `.github/skills/` ;
+- `--marimo` : le contrat et le serveur MCP dans `[tool.marimo]` de `pyproject.toml`, pour
+  l'assistant intégré de marimo ;
+- `--hook-claude` : la vérification après chaque écriture, dans `.claude/settings.json` ;
+- `--mcp-claude` : le serveur MCP pour Claude Code, dans `.mcp.json`.
+
+Un serveur MCP lance du code chez quiconque ouvre le projet : il ne se pose que sur demande.
+"""
+
+from __future__ import annotations
+
+import json
+import shutil
+from dataclasses import dataclass
+from pathlib import Path
+
+from .contrat import contrat_court, reference_regles
+
+ICI = Path(__file__).resolve().parent
+SKILL = ICI / "donnees" / "skill"
+DOSSIERS_SKILL = {"agents": ".agents/skills", "claude": ".claude/skills", "github": ".github/skills"}
+
+
+@dataclass
+class Action:
+    cible: str
+    etat: str  # "à créer", "créé", "déjà là", "à compléter à la main", "laissé (diffère)"
+    detail: str = ""
+
+
+def commande_mak(source: str | None = None) -> list[str]:
+    """La commande qui lance `mak` depuis un autre processus (marimo, Claude Code)."""
+    if source:
+        return ["uvx", "--from", source, "mak"]
+    if shutil.which("mak"):
+        return ["mak"]
+    racine = ICI.parent.parent
+    if (racine / "pyproject.toml").exists():  # copie de travail du dépôt
+        return ["uvx", "--from", str(racine), "mak"]
+    return ["uvx", "--from", "marimo-agent-kit", "mak"]
+
+
+def fichiers_du_skill() -> dict[str, str]:
+    fichiers = {}
+    for chemin in sorted(SKILL.rglob("*")):
+        if chemin.is_file():
+            fichiers[str(chemin.relative_to(SKILL))] = chemin.read_text(encoding="utf-8")
+    fichiers["reference/regles.md"] = reference_regles()
+    return fichiers
+
+
+def poser_skill(dossier: Path, cible: str, appliquer: bool, remplacer: bool = False) -> list[Action]:
+    destination = dossier / DOSSIERS_SKILL[cible] / "marimo-agent-kit"
+    actions = []
+    for relatif, contenu in fichiers_du_skill().items():
+        chemin = destination / relatif
+        nom = str(chemin.relative_to(dossier))
+        if chemin.exists() and chemin.read_text(encoding="utf-8") == contenu:
+            actions.append(Action(nom, "déjà là"))
+            continue
+        if chemin.exists() and not remplacer:
+            actions.append(Action(nom, "laissé (diffère)", "`--remplacer` pour mettre la version du paquet"))
+            continue
+        if appliquer:
+            chemin.parent.mkdir(parents=True, exist_ok=True)
+            chemin.write_text(contenu, encoding="utf-8")
+        actions.append(Action(nom, "créé" if appliquer else "à créer"))
+    return actions
+
+
+def bloc_marimo(commande: list[str]) -> str:
+    # Chaîne littérale TOML (''' … ''') : aucun antislash n'y est interprété.
+    regles = contrat_court().replace("'''", "' ' '")
+    return (
+        "\n[tool.marimo.ai]\n"
+        "# Ajouté par marimo-agent-kit : envoyé avec chaque requête de l'assistant de marimo.\n"
+        f"rules = '''\n{regles}'''\n"
+        "\n[tool.marimo.mcp.mcpServers.marimo_agent_kit]\n"
+        "# Outils pour les modes Ask et Agent de l'assistant (demande marimo[mcp]).\n"
+        f"command = {json.dumps(commande[0])}\n"
+        f"args = {json.dumps([*commande[1:], 'mcp'], ensure_ascii=False)}\n"
+    )
+
+
+def poser_marimo(dossier: Path, appliquer: bool, source: str | None = None) -> list[Action]:
+    pyproject = dossier / "pyproject.toml"
+    bloc = bloc_marimo(commande_mak(source))
+    if not pyproject.exists():
+        return [Action("pyproject.toml", "à compléter à la main",
+                       "pas de pyproject.toml : en créer un juste pour marimo changerait ce que uv voit du dossier. "
+                       "Mets ce bloc dans ton pyproject, ou dans ~/.config/marimo/marimo.toml sans le préfixe "
+                       "`tool.marimo.` :\n" + bloc)]
+    texte = pyproject.read_text(encoding="utf-8")
+    if "[tool.marimo.ai]" in texte or "[tool.marimo.mcp" in texte:
+        if "marimo_agent_kit" in texte:
+            return [Action("pyproject.toml", "déjà là")]
+        return [Action("pyproject.toml", "à compléter à la main",
+                       "[tool.marimo.ai] ou [tool.marimo.mcp] existe déjà : fusionne ce bloc à la main :\n" + bloc)]
+    if appliquer:
+        pyproject.write_text(texte.rstrip("\n") + "\n" + bloc, encoding="utf-8")
+    return [Action("pyproject.toml", "créé" if appliquer else "à créer", "[tool.marimo.ai] rules et le serveur MCP")]
+
+
+def _fusionner_json(chemin: Path, modifier, appliquer: bool, dossier: Path) -> Action:
+    nom = str(chemin.relative_to(dossier))
+    donnees = {}
+    if chemin.exists():
+        try:
+            donnees = json.loads(chemin.read_text(encoding="utf-8") or "{}")
+        except ValueError:
+            return Action(nom, "à compléter à la main", "JSON illisible : rien n'a été touché")
+    if not modifier(donnees):
+        return Action(nom, "déjà là")
+    if appliquer:
+        chemin.parent.mkdir(parents=True, exist_ok=True)
+        chemin.write_text(json.dumps(donnees, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return Action(nom, "créé" if appliquer else "à créer")
+
+
+def poser_hook_claude(dossier: Path, appliquer: bool, source: str | None = None) -> list[Action]:
+    commande = " ".join([*commande_mak(source), "hook"])
+
+    def modifier(donnees: dict) -> bool:
+        entrees = donnees.setdefault("hooks", {}).setdefault("PostToolUse", [])
+        if any(commande == h.get("command") for e in entrees for h in e.get("hooks", [])):
+            return False
+        entrees.append({"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": commande, "timeout": 120}]})
+        return True
+
+    return [_fusionner_json(dossier / ".claude" / "settings.json", modifier, appliquer, dossier)]
+
+
+def poser_mcp_claude(dossier: Path, appliquer: bool, source: str | None = None) -> list[Action]:
+    commande = commande_mak(source)
+
+    def modifier(donnees: dict) -> bool:
+        serveurs = donnees.setdefault("mcpServers", {})
+        if "marimo_agent_kit" in serveurs:
+            return False
+        serveurs["marimo_agent_kit"] = {"command": commande[0], "args": [*commande[1:], "mcp"]}
+        return True
+
+    return [_fusionner_json(dossier / ".mcp.json", modifier, appliquer, dossier)]
+
+
+def installer(dossier: Path, skill: str | None, marimo: bool, hook_claude: bool, mcp_claude: bool,
+              appliquer: bool, remplacer: bool = False, source: str | None = None) -> list[Action]:
+    actions: list[Action] = []
+    if skill:
+        actions += poser_skill(dossier, skill, appliquer, remplacer)
+    if marimo:
+        actions += poser_marimo(dossier, appliquer, source)
+    if hook_claude:
+        actions += poser_hook_claude(dossier, appliquer, source)
+    if mcp_claude:
+        actions += poser_mcp_claude(dossier, appliquer, source)
+    return actions

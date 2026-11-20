@@ -1,0 +1,4 @@
+# Les exemples sont des notebooks marimo : `marimo check` et les essais les contrôlent, pas ruff.
+extend = "../ruff.toml"
+extend-exclude = ["tests/exemples"]
+target-version = "py310"
