@@ -150,8 +150,9 @@ def sonder(base_url: str, modele: str, cle: str = "inutilise", entetes: dict[str
 
 def bloc_configuration(nom: str, base_url: str, modele: str, variable_cle: str | None,
                        entetes: dict[str, str] | None, ca: str | None) -> str:
-    lignes = [f"[tool.marimo.ai.custom_providers.{nom}]", f"base_url = {json.dumps(base_url)}",
-              f'api_key = "env:{variable_cle}"' if variable_cle else 'api_key = "inutilise"  # marimo exige une clé, même factice']
+    # la clé n'est jamais écrite : une référence `env:` à la variable, ou une valeur factice
+    reference = f'"env:{variable_cle}"' if variable_cle else '"inutilise"  # marimo exige une clé, même factice'
+    lignes = [f"[tool.marimo.ai.custom_providers.{nom}]", f"base_url = {json.dumps(base_url)}", "api_key = " + reference]
     if ca:
         lignes.append(f"ca_bundle_path = {json.dumps(ca)}")
     if entetes:
