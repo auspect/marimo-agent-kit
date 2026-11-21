@@ -1,0 +1,238 @@
+<!-- marimo-lens 0.2.4, recopié de docs/troubleshooting.md (Apache-2.0) -->
+---
+title: Troubleshooting
+description: Recover unavailable targets, failed image capture, stale revisions, reopened notebooks, code-mode connection failures, and browser capture errors.
+---
+
+# Troubleshooting
+
+Start from the visible symptom or `LensError.code`. Each recovery names the
+action to take and the result that confirms Lens is ready again.
+
+[Errors and limits](./reference/errors) lists every public error code. [How
+Lens works](./how-lens-works) and [Custom targets](./custom-targets) explain
+the identities and lifecycle states used in these recoveries.
+
+## Target is unavailable
+
+**Symptom:** An Open row says **Target unavailable**, its marker is absent, or
+activity appears as a dock notice while no ring surrounds the target.
+
+**Action:** Check the target kind in the current selection reference.
+
+- For a notebook target, run the same cell and make sure its output is visible.
+- For a configured DOM target, restore its stable element ID. Confirm that it
+  still matches `dom_selector` and carries the same producing cells and notebook
+  source identities. Reselect an unkeyed element after replacing it.
+- After a page reload, remove the older selection and make a new one in the new
+  document.
+
+**Result:** The marker reappears on the same target and **Target unavailable**
+disappears from the Open row.
+
+Keep the target unavailable when the page now represents a different object.
+The selection retains its note and any image whose capture previously succeeded,
+so you can inspect or remove it.
+
+## Image is unavailable or outdated
+
+**Symptom:** The image action says **Preparing image**, **Image unavailable**, or
+**View previous image**. The selection reference reports `pending`, `failed`, or
+`outdated`.
+
+**Action:** Match the recovery to the status.
+
+| Status     | Action                                                                                                                          | Expected result                                                        |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `pending`  | Keep the target rendered while capture completes.                                                                               | Status becomes `available` and **View image** opens the preview.       |
+| `failed`   | Restore a stable target and accessible resources, then move the marker or make a new selection.                                 | A new capture becomes `available`.                                     |
+| `outdated` | Keep the target visible while replacement capture runs. Move the marker again or reselect when the previous replacement failed. | A fresh image replaces the prior image and status becomes `available`. |
+
+Text, target, producing-cell, and note evidence remain available when image capture
+fails. An agent can continue from that evidence when the task does not require a
+visual claim.
+
+## Selector is invalid
+
+**Symptom:** Lens reports `Lens dom_selector is invalid` while mounting, or no
+configured DOM targets appear.
+
+**Action:** Test the same selector in the Lens document and keep it within 1,024
+UTF-16 code units.
+
+```js
+document.querySelectorAll("#app-shell :is(header, section, article)");
+```
+
+Use a non-empty selector that matches authored roots in the document's light
+DOM. Elements inside another document or inside a shadow root cannot be matched
+directly by `dom_selector`. Select their light-DOM host root when that host should
+own the selection.
+
+**Result:** Lens mounts. In selection mode, Lens highlights an eligible root as
+the person hovers it or cycles through targets with the keyboard.
+
+When a selector is valid but one root is missing, give that root a stable unique
+ID and check its producing-cell metadata against the [host
+checklist](./custom-targets#host-checklist).
+
+## Iframe or resource content blocks image capture
+
+**Symptom:** The selection exists, but its image reports a capture failure. The
+target contains an external iframe, a cross-origin image, or another
+browser-protected resource.
+
+**Action:** Keep the selection Open and choose one of these paths:
+
+1. Continue from the selection note, DOM hint, producing cells, and graph context
+   when they are enough to complete the task.
+2. Make the iframe or resource same-origin when you own its delivery.
+3. Select a target outside the inaccessible content.
+
+**Result:** The text-grounded workflow can proceed immediately, or a new capture
+reaches `available` after the target contains accessible content.
+
+Same-origin iframe documents can receive pointer and keyboard selection events.
+Image capture still requires every nested iframe document to remain accessible
+throughout rasterization.
+
+## Lens view ownership warning
+
+**Symptom:** The browser console reports that another Lens view owns this
+document.
+
+**Action:** In a code-mode call, use `marimo_lens.agent.connect(ctx)` to access the Lens
+that owns the visible dock. When one browser-ready Lens exists,
+`connect(ctx)` selects it even if the context contains other Lens objects.
+
+The warning is about views in one browser document. If several browser-ready
+instances exist, use `marimo_lens.agent.discover(ctx)` and reconnect with the intended
+identity. Ownership passes to the next view when the current owner closes.
+
+This warning is separate from `lens_ambiguous`, which means the API could not
+select one browser-ready instance or one context candidate.
+
+## Code mode reports `lens_ambiguous`
+
+**Symptom:** `marimo_lens.agent.connect()` raises
+`LensError(code="lens_ambiguous")`.
+
+**Action:** Reconnect with the `MountedLens.identity` saved from the intended
+Lens. If you have no saved identity, use `marimo_lens.agent.discover(ctx)` to inspect
+available handles and their current selections. See [Several or no
+instances](./agents#several-or-no-instances).
+
+```python
+mounted = marimo_lens.agent.connect(ctx, identity=saved_identity)
+```
+
+**Result:** `mounted.identity` matches the saved identity and subsequent calls
+address the same Lens instance.
+
+## A selection revision is stale
+
+**Symptom:** Activity, reveal, cell-output capture, or resolution raises
+`LensError(code="revision_conflict")`.
+
+**Action:** Read a fresh context, find the intended selection again by ID, and
+reassess the request against its current note, target, and evidence. Pass the
+fresh `context.revision` to the next guarded call.
+
+```python
+context = mounted.context()
+selection = next(
+    item for item in context.references["selections"] if item["id"] == selection_id
+)
+```
+
+**Result:** The guarded call succeeds against the current selection state.
+
+A selection-state revision changes when selections are created, activated,
+edited, moved, removed, resolved, reopened, or cleared. It tracks selection
+state independently from notebook cell revisions.
+
+## Lens is missing after the notebook reopens
+
+**Symptom:** After a server restart or a reopened notebook, the cells are
+stale, the Lens dock is absent, and `marimo_lens.agent.discover(ctx)` returns an empty
+tuple.
+
+**Action:** Run the notebook, or run the cell that mounts Lens. Reopening
+starts a new kernel. When marimo's
+[**On startup**](https://docs.marimo.io/guides/configuration/runtime_configuration/#on-startup)
+setting (`runtime.auto_instantiate`) is off, the notebook shows its previous
+outputs without running any cell, so the new kernel has no Lens yet. A
+code-mode call runs notebook cells only through `ctx.run_cell()`.
+
+An agent runs the cell that mounts Lens: a cell that imports marimo, or an
+authored Lens cell. For a notebook without one, it
+calls `add_lens_cell(ctx)`, which reruns its own Lens cell or queues a new one.
+Connect in a fresh kernel call.
+
+**Result:** The dock appears after the cell runs, and `discover()` returns its
+handle.
+
+Open selections and History belong to the Lens in the previous kernel and end
+with it. The new Lens starts empty.
+
+## Code mode cannot find Lens
+
+**Symptom:** `connect()` raises `LensError(code="lens_unavailable")`, or the
+active agent has no advertised `lens` capability.
+
+**Action:** Confirm that `marimo-lens` is installed in the active notebook
+environment and import its agent adapter there.
+
+```python
+import marimo_lens
+
+help(marimo_lens.agent)
+```
+
+Lens registers `marimo_lens.agent` in marimo's `marimo.agent.capability`
+entry-point group. After installing it in the running kernel's environment,
+ask the agent to check `cm.capabilities()` again and import the Lens adapter.
+If the import fails, inspect the kernel's `sys.executable` and install through
+that notebook's package manager.
+
+If the package is installed and no Lens exists, follow [Several or no
+instances](./agents#several-or-no-instances). End the kernel call after
+`add_lens_cell(ctx)` so the browser can render and register the new Lens before
+calling `connect()` again.
+
+**Result:** `marimo_lens.agent.connect(ctx)` returns a `MountedLens` and
+`mounted.context()` returns the current detached context.
+
+Use [marimo pair](https://marimo.io/pair)
+when the agent still needs a live marimo code-mode connection.
+
+## Cell-output image returns `None`
+
+**Symptom:** `mounted.cell_image()` returns `None` on its first call.
+
+**Action:** Save the Lens identity, cell ID, and selection revision. End the
+current kernel call so the browser can respond. Reconnect and call `cell_image()`
+again with the same cell ID and revision.
+
+**Result:** The completed call returns and consumes the current unannotated PNG.
+
+`None` means capture is pending. A terminal failure raises `LensError`.
+
+## Cell or capture operation raises an error
+
+Use the code to choose the recovery:
+
+| Error code            | Action                                                                                                              | Expected result                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `browser_unavailable` | Display one Lens and wait for its browser view to register.                                                         | A new cell-output image request starts.               |
+| `runtime_unavailable` | Run the call inside the active marimo code-mode kernel. Keep the selection Open.                                    | `mounted.context()` can inspect the live graph.       |
+| `cell_not_found`      | Read fresh context and use a cell ID that still belongs to the graph.                                               | The target cell validates.                            |
+| `output_unavailable`  | Run the cell and keep its rendered output visible.                                                                  | The browser finds the canonical output.               |
+| `capture_busy`        | Poll the active cell with the same cell ID and revision until it returns bytes or a terminal error.                 | The capture slot becomes available for the next cell. |
+| `capture_timeout`     | Stabilize the rendered output and request the cell-output image again.                                              | The new capture completes within its deadline.        |
+| `capture_failed`      | Remove inaccessible iframe or resource content, keep the output stable, and retry when current pixels are required. | The new capture returns PNG bytes.                    |
+| `lens_closed`         | Reconnect to another mounted Lens or render a new Lens.                                                             | The new handle accepts context and feedback calls.    |
+
+Read [Verify with a cell-output image](./agents#verify-with-a-cell-output-image)
+for the polling workflow and [Errors and limits](./reference/errors) for
+argument validation, revision fields, and the complete error catalog.

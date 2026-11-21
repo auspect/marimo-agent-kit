@@ -72,6 +72,12 @@ mak cellules --notebook notebook.py < proposees.json   # avant d'insérer des ce
 - La référence de chaque règle (`AG001`…) : `reference/regles.md`, ou `mak regles --reference`.
   Une règle qui se trompe sur un cas précis : `--ignorer AG203`, et dis pourquoi.
 
+## Skills voisins du même kit
+
+- `wigglystuff` : choisir un widget au-delà de `mo.ui` (deux paramètres d'un geste, nombre dans
+  une phrase, sélection sur un graphique, trace d'algorithme) et lire sa doc hors ligne.
+- `marimo-lens` : quand l'analyste montre une zone d'un résultat, ou pour une visite guidée.
+
 ## Ce que ce skill ne refait pas
 
 Le format du fichier, les conversions depuis Jupyter ou Streamlit, WASM et anywidget sont

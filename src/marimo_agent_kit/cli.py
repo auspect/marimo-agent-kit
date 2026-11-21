@@ -6,6 +6,7 @@
     mak regles [--reference]
     mak sonde-llm https://llm.interne/v1 mon-modele --cle-env VARIABLE   (LLM pour l'assistant de marimo)
     mak confidentialite             ce qui sort du poste avec marimo, et quoi régler
+    mak widgets [Nom] [--chercher motif]   documentation hors ligne de wigglystuff
     mak mcp                         serveur MCP en entrée/sortie standard
     mak hook [--executer]           hook après écriture (Claude Code, Copilot)
     mak installer --skill agents --marimo [--hook-claude] [--mcp-claude] [--appliquer]
@@ -69,6 +70,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--nom", default="interne", help="nom du fournisseur dans marimo")
     p.add_argument("--delai", type=int, default=60)
 
+    p = sous.add_parser("widgets", help="documentation hors ligne de wigglystuff, comparée à la version installée")
+    p.add_argument("nom", nargs="?", help="un widget (Slider2D) ou une page (slider2d) ; rien pour le catalogue")
+    p.add_argument("--chercher", metavar="MOTIF", help="chercher dans les noms et les résumés")
+    p.add_argument("--sans-installe", action="store_true", help="ne pas interroger le Python du projet")
+
     p = sous.add_parser("confidentialite", help="ce qui sort du poste avec marimo et son assistant, et quoi régler")
     p.add_argument("--json", action="store_true")
 
@@ -79,7 +85,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sous.add_parser("installer", help="poser le skill, la configuration de marimo, le hook ou le serveur MCP")
     p.add_argument("--dossier", type=Path, default=Path("."))
-    p.add_argument("--skill", choices=["agents", "claude", "github"])
+    p.add_argument("--skill", choices=["agents", "claude", "github"], help="où poser les skills")
+    p.add_argument("--seulement", help="skills à poser, séparés par des virgules (défaut : tous)")
     p.add_argument("--marimo", action="store_true", help="contrat et serveur MCP dans [tool.marimo] de pyproject.toml")
     p.add_argument("--hook-claude", action="store_true")
     p.add_argument("--mcp-claude", action="store_true")
@@ -140,6 +147,13 @@ def main(argv: list[str] | None = None) -> int:
                                                   args.ca)))
         return 0 if all(e.ok for e in essais) else 1
 
+    if args.commande == "widgets":
+        from .widgets import en_texte as widgets_en_texte
+        from .widgets import trouver
+
+        print(widgets_en_texte(args.nom, args.chercher, not args.sans_installe))
+        return 1 if args.nom and trouver(args.nom) is None else 0
+
     if args.commande == "confidentialite":
         import os
         from dataclasses import asdict
@@ -167,9 +181,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.commande == "installer":
         from .installer import installer
+        from .ressources import SKILLS
 
+        noms = tuple(n.strip() for n in args.seulement.split(",")) if args.seulement else SKILLS
+        inconnus = [n for n in noms if n not in SKILLS]
+        if inconnus:
+            print(f"Skills inconnus : {', '.join(inconnus)}. Disponibles : {', '.join(SKILLS)}.", file=sys.stderr)
+            return 2
         actions = installer(args.dossier.resolve(), args.skill, args.marimo, args.hook_claude, args.mcp_claude,
-                            args.appliquer, args.remplacer, args.source)
+                            args.appliquer, args.remplacer, args.source, noms)
         if not actions:
             print("Rien de demandé : choisis --skill, --marimo, --hook-claude ou --mcp-claude.")
             return 2

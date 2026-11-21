@@ -1,0 +1,12 @@
+{
+  "name": "marimo-agent-kit",
+  "interface": { "displayName": "marimo agent kit" },
+  "plugins": [
+    {
+      "name": "marimo-agent-kit",
+      "source": { "source": "local", "path": "./" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Education & Research"
+    }
+  ]
+}

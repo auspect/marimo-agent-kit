@@ -1,4 +1,9 @@
-# Les exemples sont des notebooks marimo : `marimo check` et les essais les contrôlent, pas ruff.
-extend = "../ruff.toml"
-extend-exclude = ["tests/exemples"]
+line-length = 130
 target-version = "py310"
+# Les exemples sont des notebooks marimo, et les démos de wigglystuff sont recopiées telles quelles :
+# `marimo check` et les essais les contrôlent, pas ruff.
+extend-exclude = ["tests/exemples", "skills/wigglystuff/references/demos"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

@@ -1,6 +1,6 @@
 [project]
 name = "marimo-agent-kit"
-version = "0.1.0"
+version = "0.2.0"
 description = "Contrôles, outils MCP, skill et hook pour que les agents écrivent des notebooks marimo justes et lisibles."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,3 +21,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/marimo_agent_kit"]
+
+[tool.hatch.build.targets.wheel.force-include]
+# Les skills vivent à la racine du dépôt (format Agent Skills) et voyagent dans le paquet.
+"skills" = "marimo_agent_kit/skills"
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "skills", "tests", "README.md", "LICENSE", "pyproject.toml"]

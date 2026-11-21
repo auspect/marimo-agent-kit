@@ -1,8 +1,9 @@
 """Un serveur MCP en entrée/sortie standard, sans dépendance.
 
 Il donne aux assistants (celui de marimo en modes Ask et Agent, Claude Code, Copilot,
-OpenCode…) cinq outils : vérifier un notebook, vérifier des cellules avant de les insérer,
-lire l'API de marimo installée, chercher dans cette API, et lire le contrat d'écriture.
+OpenCode…) six outils : vérifier un notebook, vérifier des cellules avant de les insérer,
+lire l'API de marimo installée, chercher dans cette API, lire la doc de wigglystuff, et lire le
+contrat d'écriture.
 
 Le protocole : JSON-RPC 2.0, un message par ligne. Seuls `initialize`, `ping`, `tools/list`
 et `tools/call` sont servis ; les notifications sont ignorées.
@@ -74,6 +75,15 @@ OUTILS = [
         "inputSchema": {"type": "object", "properties": {"motif": {"type": "string"}}, "required": ["motif"]},
     },
     {
+        "name": "widgets_wigglystuff",
+        "description": (
+            "Documentation hors ligne des widgets wigglystuff (Slider2D, TangleDistribution, ChartPuck, PairPlot, "
+            "StateViewer…) : sans argument le catalogue, avec `nom` la page (usage, signature, traitlets, démo), avec "
+            "`motif` une recherche. Signale si le projet a une autre version que celle de la doc."
+        ),
+        "inputSchema": {"type": "object", "properties": {"nom": {"type": "string"}, "motif": {"type": "string"}}},
+    },
+    {
         "name": "regles_marimo",
         "description": "Le contrat court pour écrire des cellules marimo justes et lisibles. À lire une fois par session.",
         "inputSchema": {"type": "object", "properties": {}},
@@ -100,6 +110,10 @@ def appeler(nom: str, arguments: dict) -> tuple[str, bool]:
         return api_en_texte(interroger(arguments["symbole"])), False
     if nom == "chercher_api_marimo":
         return api_en_texte(interroger(arguments["motif"], mode="chercher")), False
+    if nom == "widgets_wigglystuff":
+        from .widgets import en_texte as widgets_en_texte
+
+        return widgets_en_texte(arguments.get("nom") or None, arguments.get("motif") or None), False
     if nom == "regles_marimo":
         return contrat_court(), False
     return f"Outil inconnu : {nom}", True

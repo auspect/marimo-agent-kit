@@ -1,0 +1,10 @@
+{
+  "name": "marimo-agent-kit",
+  "version": "0.2.0",
+  "description": "Écrire, vérifier et rendre lisibles des notebooks marimo avec un agent ; widgets wigglystuff et marimo-lens",
+  "author": {
+    "name": "auspect"
+  },
+  "repository": "https://github.com/auspect/marimo-agent-kit",
+  "skills": "./skills/"
+}

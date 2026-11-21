@@ -3,8 +3,9 @@
 Par défaut, l'installateur dit ce qu'il ferait ; `--appliquer` écrit. Chaque morceau se
 demande à part :
 
-- `--skill agents|claude|github` : le skill, dans `.agents/skills/` (lu par la plupart des
-  agents), `.claude/skills/` ou `.github/skills/` ;
+- `--skill agents|claude|github` : les skills (`marimo-agent-kit`, `wigglystuff`, `marimo-lens`,
+  ou ceux de `--seulement`), dans `.agents/skills/` (lu par la plupart des agents),
+  `.claude/skills/` ou `.github/skills/` ;
 - `--marimo` : le contrat et le serveur MCP dans `[tool.marimo]` de `pyproject.toml`, pour
   l'assistant intégré de marimo ;
 - `--hook-claude` : la vérification après chaque écriture, dans `.claude/settings.json` ;
@@ -21,9 +22,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .contrat import contrat_court, reference_regles
+from .ressources import SKILLS, dossier_skill
 
 ICI = Path(__file__).resolve().parent
-SKILL = ICI / "donnees" / "skill"
 DOSSIERS_SKILL = {"agents": ".agents/skills", "claude": ".claude/skills", "github": ".github/skills"}
 
 
@@ -46,31 +47,34 @@ def commande_mak(source: str | None = None) -> list[str]:
     return ["uvx", "--from", "marimo-agent-kit", "mak"]
 
 
-def fichiers_du_skill() -> dict[str, str]:
-    fichiers = {}
-    for chemin in sorted(SKILL.rglob("*")):
-        if chemin.is_file():
-            fichiers[str(chemin.relative_to(SKILL))] = chemin.read_text(encoding="utf-8")
-    fichiers["reference/regles.md"] = reference_regles()
+def fichiers_du_skill(nom: str = "marimo-agent-kit") -> dict[str, bytes]:
+    """Les fichiers d'un skill tels qu'ils doivent être posés ; la référence des règles est régénérée."""
+    racine = dossier_skill(nom)
+    fichiers = {str(c.relative_to(racine)).replace("\\", "/"): c.read_bytes()
+                for c in sorted(racine.rglob("*")) if c.is_file() and "__pycache__" not in c.parts}
+    if nom == "marimo-agent-kit":
+        fichiers["reference/regles.md"] = reference_regles().encode("utf-8")
     return fichiers
 
 
-def poser_skill(dossier: Path, cible: str, appliquer: bool, remplacer: bool = False) -> list[Action]:
-    destination = dossier / DOSSIERS_SKILL[cible] / "marimo-agent-kit"
+def poser_skill(dossier: Path, cible: str, appliquer: bool, remplacer: bool = False,
+                noms: tuple[str, ...] = SKILLS) -> list[Action]:
     actions = []
-    for relatif, contenu in fichiers_du_skill().items():
-        chemin = destination / relatif
-        nom = str(chemin.relative_to(dossier))
-        if chemin.exists() and chemin.read_text(encoding="utf-8") == contenu:
-            actions.append(Action(nom, "déjà là"))
-            continue
-        if chemin.exists() and not remplacer:
-            actions.append(Action(nom, "laissé (diffère)", "`--remplacer` pour mettre la version du paquet"))
-            continue
-        if appliquer:
-            chemin.parent.mkdir(parents=True, exist_ok=True)
-            chemin.write_text(contenu, encoding="utf-8")
-        actions.append(Action(nom, "créé" if appliquer else "à créer"))
+    for nom_skill in noms:
+        destination = dossier / DOSSIERS_SKILL[cible] / nom_skill
+        for relatif, contenu in fichiers_du_skill(nom_skill).items():
+            chemin = destination / relatif
+            nom = str(chemin.relative_to(dossier))
+            if chemin.exists() and chemin.read_bytes() == contenu:
+                actions.append(Action(nom, "déjà là"))
+                continue
+            if chemin.exists() and not remplacer:
+                actions.append(Action(nom, "laissé (diffère)", "`--remplacer` pour mettre la version du paquet"))
+                continue
+            if appliquer:
+                chemin.parent.mkdir(parents=True, exist_ok=True)
+                chemin.write_bytes(contenu)
+            actions.append(Action(nom, "créé" if appliquer else "à créer"))
     return actions
 
 
@@ -150,10 +154,11 @@ def poser_mcp_claude(dossier: Path, appliquer: bool, source: str | None = None) 
 
 
 def installer(dossier: Path, skill: str | None, marimo: bool, hook_claude: bool, mcp_claude: bool,
-              appliquer: bool, remplacer: bool = False, source: str | None = None) -> list[Action]:
+              appliquer: bool, remplacer: bool = False, source: str | None = None,
+              noms: tuple[str, ...] = SKILLS) -> list[Action]:
     actions: list[Action] = []
     if skill:
-        actions += poser_skill(dossier, skill, appliquer, remplacer)
+        actions += poser_skill(dossier, skill, appliquer, remplacer, noms)
     if marimo:
         actions += poser_marimo(dossier, appliquer, source)
     if hook_claude:

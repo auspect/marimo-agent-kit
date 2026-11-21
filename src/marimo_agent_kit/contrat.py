@@ -7,16 +7,14 @@ avoir deux textes à garder d'accord.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from .regles import GRAVITES, REGLES
-
-CONTRAT = Path(__file__).resolve().parent / "donnees" / "skill" / "reference" / "contrat.md"
+from .ressources import dossier_skill
 
 
 def contrat_court() -> str:
     """Le contrat sans son titre Markdown : il part tel quel dans un prompt."""
-    return CONTRAT.read_text(encoding="utf-8").removeprefix("# ")
+    contrat = dossier_skill("marimo-agent-kit") / "reference" / "contrat.md"
+    return contrat.read_text(encoding="utf-8").removeprefix("# ")
 
 
 def reference_regles() -> str:

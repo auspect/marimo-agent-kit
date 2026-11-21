@@ -121,7 +121,7 @@ class ServeurMCP(unittest.TestCase):
         reponses = {r["id"]: r for r in map(json.loads, sortie.stdout.splitlines())}
         self.assertEqual(sorted(reponses), [1, 2, 3, 4, 5], "la notification ne reçoit pas de réponse")
         self.assertEqual(reponses[1]["result"]["protocolVersion"], "2025-11-25")
-        self.assertEqual(len(reponses[2]["result"]["tools"]), 5)
+        self.assertEqual(len(reponses[2]["result"]["tools"]), 6)
         self.assertIn("Contrat", reponses[3]["result"]["content"][0]["text"])
         self.assertIn("AG105", reponses[4]["result"]["content"][0]["text"])
         self.assertEqual(reponses[5]["error"]["code"], -32601)
@@ -137,11 +137,11 @@ class Installateur(unittest.TestCase):
         with tempfile.TemporaryDirectory() as dossier:
             dossier = Path(dossier)
             (dossier / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0"\n', encoding="utf-8")
-            avant = installer(dossier, "agents", True, True, True, appliquer=False, source="/kit")
+            avant = installer(dossier, "agents", True, True, True, appliquer=False, source="/kit", noms=("marimo-agent-kit",))
             self.assertTrue(all(a.etat == "à créer" for a in avant))
             self.assertEqual(sorted(p.name for p in dossier.iterdir()), ["pyproject.toml"])
-            installer(dossier, "agents", True, True, True, appliquer=True, source="/kit")
-            apres = installer(dossier, "agents", True, True, True, appliquer=True, source="/kit")
+            installer(dossier, "agents", True, True, True, appliquer=True, source="/kit", noms=("marimo-agent-kit",))
+            apres = installer(dossier, "agents", True, True, True, appliquer=True, source="/kit", noms=("marimo-agent-kit",))
             self.assertTrue(all(a.etat == "déjà là" for a in apres), [(a.cible, a.etat) for a in apres])
             reglages = json.loads((dossier / ".claude" / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(reglages["hooks"]["PostToolUse"][0]["hooks"][0]["command"], "uvx --from /kit mak hook")
@@ -164,18 +164,22 @@ class Installateur(unittest.TestCase):
 
 class FichiersGeneres(unittest.TestCase):
     def test_reference_des_regles_a_jour(self):
-        livree = SRC / "marimo_agent_kit" / "donnees" / "skill" / "reference" / "regles.md"
+        livree = ICI.parent / "skills" / "marimo-agent-kit" / "reference" / "regles.md"
         self.assertEqual(livree.read_text(encoding="utf-8"), reference_regles(),
-                         "régénère : mak regles --reference > src/marimo_agent_kit/donnees/skill/reference/regles.md")
+                         "régénère : mak regles --reference > skills/marimo-agent-kit/reference/regles.md")
 
-    def test_copie_du_skill_dans_le_depot_a_jour(self):
-        copie = ICI.parent.parent / ".github" / "skills" / "marimo-agent-kit"
-        if not copie.exists():
-            self.skipTest("pas de copie du skill dans ce dépôt")
-        for relatif, contenu in fichiers_du_skill().items():
-            with self.subTest(fichier=relatif):
-                self.assertEqual((copie / relatif).read_text(encoding="utf-8"), contenu,
-                                 "mets la copie à jour : mak installer --skill github --remplacer --appliquer")
+    def test_copie_des_skills_dans_le_depot_parent_a_jour(self):
+        from marimo_agent_kit.ressources import SKILLS
+
+        copies = ICI.parent.parent / ".github" / "skills"
+        presents = [n for n in SKILLS if (copies / n).exists()]
+        if not presents:
+            self.skipTest("pas de copie des skills dans un dépôt parent")
+        for nom in presents:
+            for relatif, contenu in fichiers_du_skill(nom).items():
+                with self.subTest(skill=nom, fichier=relatif):
+                    self.assertEqual((copies / nom / relatif).read_bytes(), contenu,
+                                     "mets la copie à jour : mak installer --skill github --remplacer --appliquer")
 
 
 @unittest.skipUnless(AVEC_MARIMO, "marimo absent de ce Python")

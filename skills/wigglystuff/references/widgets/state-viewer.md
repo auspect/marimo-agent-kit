@@ -1,0 +1,277 @@
+<!-- wigglystuff 0.6.0, recopié de docs/reference/state-viewer.md (MIT) -->
+# StateViewer API
+
+
+`StateViewer(search_func, view_func)` runs `search_func` once and records every
+line it executes, including recursive calls. At each step it calls `view_func`
+with the function's local variables, then plays the whole run back:
+
+- **left**: whatever `view_func` drew for that step;
+- **right**: the source with the line *about to run* highlighted and, if you pass
+  `variables=["board", "row"]`, a table of those variables. Rows stay fixed,
+  values that just changed flash, and variables that aren't set yet show
+  *not assigned*. The table is hidden by default, and `show_code=False` hides
+  the source too, giving the view the full width (the `</>` button in the
+  controls brings it back);
+- **bottom**: play/pause/step buttons, a speed slider, a badge with the current
+  timeline value, and a timeline of the whole run. Click or drag the timeline to
+  scrub, or focus the widget and use ← / → (Shift jumps 10), Home / End and Space.
+
+It's made for search problems, where the interesting part is how the state
+changes on the way to an answer.
+
+## Quick start
+
+Backtracking search for N-Queens, with a view that prints the board:
+
+```python
+from wigglystuff import StateViewer
+
+def solve(board, row, n):
+    if row == n:
+        return True
+    for col in range(n):
+        if all(c != col and abs(c - col) != row - r for r, c in enumerate(board)):
+            board.append(col)
+            if solve(board, row + 1, n):
+                return True
+            board.pop()
+    return False
+
+def view(board, n):
+    rows = ["." * c + "Q" + "." * (n - c - 1) for c in board]
+    return "<pre>" + "\n".join(rows) + "</pre>"
+
+StateViewer(solve, view, args=([], 0, 8))
+```
+
+`args` and `kwargs` are passed to `search_func`. The run is recorded when the
+widget is created; playing it back doesn't run your code again.
+
+## How `view_func` gets its values
+
+`view_func`'s **parameter names pick the locals it receives**. `def view(board, n)`
+gets the live `board` and `n` from the frame that's running. In a recursive
+search that's the innermost call.
+
+- A parameter with a default is optional: it gets the default while that local
+  doesn't exist yet. `def view(board, n, row=None, col=None)` works on every step.
+- While a *required* parameter isn't assigned yet, the previous view stays up
+  (and the panel is empty before the first one). So give a default to anything
+  that's assigned partway through the function, or the opening steps show
+  nothing.
+- A `**kwargs` parameter receives every local.
+
+Each view is drawn the moment its step is recorded, so in-place changes like
+`board.append(col)` show up correctly.
+
+`view_func` can return anything marimo can display: an HTML or SVG string,
+`mo.Html`/`mo.md`, a dataframe, even a matplotlib figure. Plain strings are used
+as HTML directly. Every *distinct* view is stored in the widget (repeats are
+stored once), so small SVG strings are the best choice for long runs.
+
+## Searches without recursion: `timeline_func`
+
+By default the timeline plots **call depth**: how many calls to `search_func`
+haven't returned yet. That shows a backtracking search's dives and retreats, but
+a loop-based search never calls itself, so its depth stays at 1 and the timeline
+is a flat bar.
+
+A loop-based search keeps its progress in a data structure instead, so tell the
+timeline what to plot. `timeline_func` picks its locals by parameter name, just
+like `view_func`, and returns a number:
+
+```python
+def search(maze, start, goal, breadth_first):
+    frontier = [start]
+    came_from = {start: None}
+    while frontier:
+        node = frontier.pop(0) if breadth_first else frontier.pop()
+        if node == goal:
+            break
+        r, c = node
+        for nxt in [(r - 1, c), (r, c + 1), (r + 1, c), (r, c - 1)]:
+            if maze[nxt[0]][nxt[1]] != "#" and nxt not in came_from:
+                came_from[nxt] = node
+                frontier.append(nxt)
+    ...
+
+StateViewer(
+    search,
+    maze_view,
+    args=(MAZE, (1, 1), (8, 15), True),
+    timeline_func=lambda frontier: len(frontier),
+    timeline_label="frontier size",
+)
+```
+
+The badge and the caption show `timeline_label`. It defaults to the function's
+name, or "value" for a lambda. Before the parameters exist the value is 0, and
+it must be a finite number. In the demo, the same function plotted this way
+shows breadth-first search keeping a narrow band while depth-first search's
+stack piles up.
+
+## Driving other widgets
+
+`view_func` is optional. Without it the widget shows just the code and timeline
+(plus the variables table, if you pass `variables=`), and you draw the state with
+any other widget instead:
+
+- `step` is synced back to Python while you play and scrub, at most once every
+  `sync_throttle_ms` (default 100; `0` syncs every step).
+- `viewer.state` holds the real local values at that step, not reprs. They're
+  copied when the step is recorded, so later in-place changes don't affect them.
+- `variables=["board", "row"]` shows a table of those names in that order.
+  `state` holds every local either way.
+
+```python
+viewer = StateViewer(solve, args=([], 0, 8), variables=["board", "row", "col"])
+viewer.observe(lambda _: redraw(viewer.state["board"]), names="step")
+```
+
+In marimo, wrap the viewer in `mo.ui.anywidget` and update another widget from a
+cell that reads `viewer.widget.state`. Assign to that widget's traitlets rather
+than creating a new one, so it keeps its own state. The demo uses this to drive a
+rotatable three.js board.
+
+## Reading the trace from Python
+
+- `viewer.steps` is the full trace, one record per step:
+    - `line`: the line about to run (1 = the `def` line; decorators are left out of `code`);
+    - `depth`: call depth;
+    - `event`: `"line"`, `"return"` or `"raise"`;
+    - `locals`: reprs of every local (`variables` only picks which ones the table shows);
+    - `view`: an index into `views` (`-1` = nothing drawn yet);
+    - `value`: the `timeline_func` value, if you passed one;
+    - `returned`: on return steps, the returned value's repr.
+- `viewer.step`, `viewer.current` (the record at `step`), `viewer.state` and
+  `viewer.n_steps`.
+- `viewer.returned` is the repr of the result, `viewer.truncated` says whether
+  `max_steps` was reached, and `viewer.error` is set if `search_func`,
+  `view_func` or `timeline_func` raised. Errors are shown in the widget rather
+  than raised, with the line they happened on.
+
+## Limits
+
+- **Only `search_func` itself is recorded.** Calls into helper functions run but
+  aren't recorded, and neither are functions defined inside it or the generator
+  expression in an `all(...)` check. If the interesting work happens in a helper,
+  trace the helper.
+- `search_func` needs Python source you can inspect: a plain `def` in a file or
+  notebook cell works best. Builtins and bound methods (`obj.solve`) raise a
+  `TypeError`. For a method, pass `Class.solve` and the object in `args`.
+- Generator functions and `async def` functions record zero steps: calling them
+  only creates the generator or coroutine and doesn't run the body.
+- `max_steps` (default 20,000) stops recording a runaway search and sets
+  `truncated`. `only_changes=True` keeps only steps whose view (or, without a
+  view, whose local values) differs from the previous step.
+- Threads started by `search_func` aren't recorded; only the thread that
+  creates the widget is.
+- Every step copies the locals (for `state`) and repr's them (for the table), so
+  very large objects make recording slower.
+
+See also: [LiveEdit](live-edit.md) for a table of every loop iteration of one
+run, and [AsyncFlow](async-flow.md) for async tasks.
+
+### `StateViewer`
+
+`from wigglystuff.state_viewer import StateViewer`
+
+```python
+StateViewer(search_func: 'Callable[..., Any]', view_func: 'Callable[..., Any] | None' = None, *, args: 'tuple[Any, ...]' = (), kwargs: 'dict[str, Any] | None' = None, max_steps: 'int' = 20000, only_changes: 'bool' = False, interval_ms: 'int' = 80, loop: 'bool' = False, height: 'int' = 0, show_code: 'bool' = True, variables: 'list[str] | None' = None, sync_throttle_ms: 'int' = 100, timeline_func: 'Callable[..., Any] | None' = None, timeline_label: 'str | None' = None, **widget_kwargs: 'Any') -> 'None'
+```
+
+Animate the state inside one run of a Python function.
+
+``search_func`` is run once under ``sys.settrace``. Every executed line of
+it (recursive calls included, helpers stay opaque) becomes one step. At
+each step ``view_func`` is called with the function's locals matched to
+its parameters by name, so ``def view(board, n): ...`` receives the live
+``board`` and ``n``. Parameters with a default are optional; while a
+required one isn't assigned yet the previous view stays up.
+
+``view_func`` can return anything marimo can show: an HTML/SVG string,
+``mo.Html``/``mo.md``, a dataframe, even a matplotlib figure. Views are
+rendered eagerly (so in-place mutations are captured correctly) and
+deduplicated. SVG strings are by far the fastest choice for long runs.
+
+``view_func`` is optional. The widget's real job is to publish the state:
+``step`` syncs to Python while playing and scrubbing (at most every
+``sync_throttle_ms``), ``current`` holds the step's line, depth and value
+reprs, and ``state`` holds the actual local values at that step. Any other
+widget can draw it, e.g. ``viewer.observe(redraw, names="step")`` or a
+marimo cell that reads ``viewer.state`` and updates another widget.
+
+Examples:
+    ```python
+    from wigglystuff import StateViewer
+
+    def solve(board, row, n):
+        if row == n:
+            return True
+        for col in range(n):
+            if all(c != col and abs(c - col) != row - r for r, c in enumerate(board)):
+                board.append(col)
+                if solve(board, row + 1, n):
+                    return True
+                board.pop()
+        return False
+
+    def view(board, n):
+        return "<pre>" + "\n".join("." * c + "Q" + "." * (n - c - 1) for c in board) + "</pre>"
+
+    StateViewer(solve, view, args=([], 0, 6))
+    ```
+
+    Without a view, drive another widget from the current state:
+
+    ```python
+    viewer = StateViewer(solve, args=([], 0, 6), variables=["board", "row"])
+    viewer.observe(lambda _: print(viewer.state["board"]), names="step")
+    ```
+
+Traitlets synchronisés dans le paquet installé :
+
+| Traitlet | Type | Défaut |
+|---|---|---|
+| `code` | Unicode | `''` |
+| `error` | Dict | |
+| `height` | Int | `0` |
+| `interval_ms` | Int | `80` |
+| `lines` | List | |
+| `loop` | Bool | `False` |
+| `playing` | Bool | `False` |
+| `returned` | Unicode | `None` |
+| `show_code` | Bool | `True` |
+| `step` | Int | `0` |
+| `steps` | List | |
+| `sync_throttle_ms` | Int | `100` |
+| `timeline_label` | Unicode | `'call depth'` |
+| `truncated` | Bool | `False` |
+| `variables` | List | |
+| `views` | List | |
+
+
+## Synced traitlets
+
+| Traitlet | Type | Notes |
+| --- | --- | --- |
+| `code` | `str` | Source of `search_func` (decorators dropped). |
+| `lines` | `list[dict]` | Syntax tokens per source line, for highlighting. |
+| `steps` | `list[dict]` | One record per step; see [Reading the trace from Python](#reading-the-trace-from-python). |
+| `views` | `list[str]` | Distinct rendered views as HTML; `steps[i]["view"]` indexes into it. |
+| `variables` | `list[str]` | Rows of the variables table: the names passed as `variables=` (empty by default, which hides the table). |
+| `step` | `int` | Current step. Synced while playing and scrubbing, and settable from Python. |
+| `playing` | `bool` | Whether playback is running. |
+| `interval_ms` | `int` | Milliseconds per step while playing. |
+| `loop` | `bool` | Restart from the first step at the end. |
+| `timeline_label` | `str` | What the timeline plots: `"call depth"`, or the label for `timeline_func`. |
+| `sync_throttle_ms` | `int` | Minimum milliseconds between `step` syncs while playing or scrubbing. |
+| `returned` | `str \| None` | Repr of the return value. |
+| `error` | `dict \| None` | `{type, message, source, lineno}` when `search_func`, `view_func` or `timeline_func` raised. |
+| `truncated` | `bool` | Whether `max_steps` was reached. |
+| `height` | `int` | Height cap in pixels (`0` = fit content). |
+| `show_code` | `bool` | Show the source panel (default `True`); `False` keeps just the view, controls and timeline, at full width. |
+
+---
+Démo : [`../demos/state_viewer.py`](../demos/state_viewer.py)
