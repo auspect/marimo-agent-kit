@@ -1,12 +1,9 @@
-"""Hook après écriture, pour Claude Code et GitHub Copilot : vérifier le notebook qui vient de changer.
+"""Ce que les agents envoient au hook, et ce que leur code de sortie veut dire.
 
-Claude Code (`PostToolUse`, filtre `Write|Edit|MultiEdit`) envoie `tool_name` et `tool_input` ;
-Copilot envoie `toolName` et `toolArgs`. Si le fichier écrit est un notebook marimo :
-
-- une erreur : code 2 et le rapport sur la sortie d'erreur, que Claude Code rend à l'agent ;
-- des avertissements seulement : code 0 et le rapport en contexte additionnel ;
-- rien, ou un incident (marimo absent, délai dépassé) : code 0, en silence. Un hook qui plante
-  ne doit pas bloquer l'agent pour une raison qui n'est pas le notebook.
+Claude Code envoie `tool_name` et `tool_input` à un hook `PostToolUse`. Copilot envoie `toolName`
+et `toolArgs`. Pour Claude Code, le code 2 rend la sortie d'erreur à l'agent, le code 0 laisse
+passer, et `hookSpecificOutput.additionalContext` ajoute du contexte. Copilot lit
+`additionalContext` à la racine de la réponse.
 """
 
 from __future__ import annotations
@@ -45,14 +42,20 @@ def chemin_ecrit(donnees: dict) -> tuple[str, Path | None]:
 def principal(entree=None, executer: bool = False) -> int:
     try:
         donnees = json.loads((entree or sys.stdin).read() or "{}")
-        origine, chemin = chemin_ecrit(donnees)
-        if chemin is None or chemin.suffix != ".py" or not chemin.exists():
-            return 0
-        if not est_notebook(chemin.read_text(encoding="utf-8", errors="replace")):
-            return 0
-        rapport = verifier(chemin, executer=executer, delai=120)
-    except Exception:  # incident : on laisse passer
+    except ValueError:
         return 0
+    if not isinstance(donnees, dict):
+        return 0
+    origine, chemin = chemin_ecrit(donnees)
+    if chemin is None or chemin.suffix != ".py" or not chemin.exists():
+        return 0
+    try:
+        source = chemin.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 0
+    if not est_notebook(source):
+        return 0
+    rapport = verifier(chemin, executer=executer, delai=120)
     compte = rapport.compte()
     if any(e.etat == "échec" for e in rapport.etapes) and not compte["erreur"]:
         return 0

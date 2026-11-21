@@ -1,8 +1,3 @@
-"""Le diagnostic de ce qui sort du poste, sur des environnements inventés.
-
-    python -m unittest discover -s marimo-agent-kit/tests
-"""
-
 import sys
 import unittest
 from pathlib import Path
@@ -34,7 +29,7 @@ class Diagnostic(unittest.TestCase):
         constats = {c.sujet: c for c in diagnostiquer(env, infos)}
         self.assertEqual(constats["vérification de version"].etat, "à régler")
         self.assertIn("https://traces.exemple", constats["traces de l'assistant"].detail)
-        for sujet in ("recherche web du chat", "MCP context7", "complétion de code", "marimo new « invite »"):
+        for sujet in ("recherche web du chat", "MCP context7", "complétion de code", 'marimo new "invite"'):
             self.assertEqual(constats[sujet].etat, "attention", sujet)
         lignes = "\n".join(lignes_a_poser(env))
         self.assertIn('[Environment]::SetEnvironmentVariable("MARIMO_SKIP_UPDATE_CHECK", "1", "User")', lignes)

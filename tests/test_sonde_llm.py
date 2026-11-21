@@ -1,8 +1,3 @@
-"""La sonde contre un faux point d'accès : tout accepté, puis sans outils, puis sans max_completion_tokens.
-
-    python -m unittest discover -s marimo-agent-kit/tests
-"""
-
 import sys
 import unittest
 from pathlib import Path

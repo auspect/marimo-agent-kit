@@ -43,7 +43,7 @@ avertissement. Il ne donne que des conseils de lisibilité.
 
 | Élément | Utilisateur | Rôle |
 |---|---|---|
-| `mak verifier` | Tout agent, la CI, toi | Lance `marimo check --strict`, applique les règles, puis exécute chaque cellule par `marimo export session`. |
+| `mak verifier` | Tout agent, la CI, toi | Lance `marimo check` et lit tous ses constats en JSON, applique les règles, puis exécute chaque cellule par `marimo export session`. |
 | `mak cellules` | Un agent qui va insérer des cellules | Applique les règles aux cellules proposées, dans le contexte du notebook. |
 | `mak api` | Tout agent | Affiche la signature et la documentation d'un symbole de marimo installé. `--chercher` trouve un nom. |
 | `mak widgets` | Tout agent | Affiche la doc de wigglystuff 0.6.0 sans réseau et la compare à la version installée. |

@@ -1,5 +1,3 @@
-"""Où sont les skills : dans le paquet installé, ou à la racine du dépôt quand on travaille sur les sources."""
-
 from __future__ import annotations
 
 from pathlib import Path

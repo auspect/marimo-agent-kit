@@ -1,23 +1,3 @@
-"""Ce qui sort du poste quand on utilise marimo et son assistant, et comment le couper.
-
-Mesuré le 20 novembre 2026 sur marimo 0.25.2 derrière un proxy qui note chaque hôte :
-
-- `marimo edit` contacte `marimo.io` (`/api/oss/latest-version`) une fois par jour pour la version ;
-  `MARIMO_SKIP_UPDATE_CHECK=1` (ou `--skip-update-check`) le coupe. `check`, `export`, `run` ne le
-  font pas.
-- Ouvrir et exécuter un notebook ordinaire ne fait rien sortir du navigateur. Des fonctions
-  précises chargent depuis unpkg ou jsdelivr : autocomplétion d'emoji et d'icônes dans le Markdown,
-  MathJax, export WASM.
-- L'assistant (pydantic-ai, openai) ne contacte que le fournisseur configuré. La traçabilité de
-  marimo est éteinte tant que `MARIMO_TRACING` ne l'allume pas ; allumée, elle exporte les prompts
-  et les réponses vers `OTEL_EXPORTER_OTLP_*`, ou dans un fichier local.
-- Sortent aussi, sur demande seulement : la recherche web du chat (DuckDuckGo si `ddgs` est
-  installé), la lecture de pages (`markdownify`), le préréglage MCP `context7`, la complétion
-  GitHub Copilot, et `marimo new "invite"` qui envoie l'invite à `ai.marimo.app`.
-
-marimo ne lit pas `DO_NOT_TRACK`. Ce module ne fait que regarder : il n'écrit rien.
-"""
-
 from __future__ import annotations
 
 import json
@@ -25,6 +5,7 @@ import os
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Literal
 
 from .api import python_avec_marimo
 from .environnement import ENV_SOBRE, VARIABLES
@@ -51,7 +32,7 @@ print(json.dumps(r))
 
 @dataclass
 class Constat:
-    etat: str  # "ok", "à régler", "attention", "info", "non vérifié"
+    etat: Literal["ok", "à régler", "attention", "info", "non vérifié"]
     sujet: str
     detail: str
 
@@ -61,7 +42,6 @@ def _vrai(valeur: str | None) -> bool:
 
 
 def infos_marimo() -> dict | None:
-    """Ce que l'environnement de marimo contient, lu par marimo lui-même ; None s'il est introuvable."""
     python = python_avec_marimo()
     if python is None:
         return None
@@ -112,10 +92,10 @@ def diagnostiquer(env: Mapping[str, str], infos: dict | None) -> list[Constat]:
                 constats.append(Constat("attention", "complétion de code",
                                         f"`{copilot}` : le code des cellules part chez ce service"))
             if infos.get("consentement_new"):
-                constats.append(Constat("attention", "marimo new « invite »",
+                constats.append(Constat("attention", 'marimo new "invite"',
                                         f"conditions acceptées le {infos['consentement_new']} : l'invite part à ai.marimo.app"))
             else:
-                constats.append(Constat("info", "marimo new « invite »",
+                constats.append(Constat("info", 'marimo new "invite"',
                                         "envoie l'invite à ai.marimo.app après accord : à éviter au travail"))
     if env.get("PYDANTIC_AI_NO_BANNER") is None:
         constats.append(Constat("info", "bannière pydantic-ai", "PYDANTIC_AI_NO_BANNER=1 la masque (affichage seulement)"))
@@ -141,6 +121,6 @@ def en_texte(constats: list[Constat], env: Mapping[str, str], version: str | Non
     tete = f"Ce qui sort du poste avec marimo {version}" if version else "Ce qui sort du poste avec marimo"
     largeur = max(len(c.etat) for c in constats)
     lignes = [tete + " :", ""]
-    lignes += [f"  [{c.etat}]{' ' * (largeur - len(c.etat))} {c.sujet} — {c.detail}" for c in constats]
+    lignes += [f"  [{c.etat}]{' ' * (largeur - len(c.etat))} {c.sujet}. {c.detail}" for c in constats]
     return "\n".join([*lignes, "", *lignes_a_poser(env)])
 

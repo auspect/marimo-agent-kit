@@ -1,11 +1,3 @@
-"""La ligne de commande, le serveur MCP, le hook, l'installateur et les fichiers générés.
-
-Sans marimo dans ce Python, les essais qui lancent marimo sont sautés ; les autres tournent
-avec la bibliothèque standard.
-
-    python -m unittest discover -s marimo-agent-kit/tests
-"""
-
 import importlib.util
 import io
 import json
@@ -30,7 +22,7 @@ from marimo_agent_kit.mcp_serveur import traiter  # noqa: E402
 MAUVAIS = ICI / "exemples" / "mauvais.py"
 PROPRE = ICI / "exemples" / "propre.py"
 AVEC_MARIMO = importlib.util.find_spec("marimo") is not None
-AVEC_POLARS = importlib.util.find_spec("polars") is not None  # les exemples l'importent
+AVEC_POLARS = importlib.util.find_spec("polars") is not None
 
 
 def lancer_cli(*args: str, entree: str = "") -> tuple[int, str]:
@@ -46,8 +38,6 @@ def lancer_cli(*args: str, entree: str = "") -> tuple[int, str]:
 
 
 class SansMarimo(unittest.TestCase):
-    """marimo introuvable : les règles tournent, et le rapport dit ce qui n'a pas tourné."""
-
     def setUp(self):
         self.ancien = os.environ.get("MAK_MARIMO")
         os.environ["MAK_MARIMO"] = "commande-qui-n-existe-pas"
@@ -64,7 +54,7 @@ class SansMarimo(unittest.TestCase):
         rapport = json.loads(texte)[0]
         self.assertEqual(rapport["statut"], "non vérifié")
         etats = {e["nom"]: e["etat"] for e in rapport["etapes"]}
-        self.assertEqual(etats["marimo check --strict"], "échec")
+        self.assertEqual(etats["marimo check"], "échec")
         self.assertEqual(etats["règles marimo-agent-kit"], "fait")
         self.assertGreaterEqual(rapport["compte"]["erreur"], 4)
 
@@ -190,11 +180,11 @@ class AvecMarimo(unittest.TestCase):
 
         mauvais = verifier(MAUVAIS, executer=True, bac_a_sable=None)
         self.assertEqual(mauvais.statut, "à corriger")
-        confirmes = [d for d in mauvais.diagnostics if "Confirmé à l'exécution" in d.message]
+        confirmes = [d for d in mauvais.diagnostics if "L'exécution le confirme" in d.message]
         self.assertGreaterEqual(len(confirmes), 3, [d.message for d in mauvais.diagnostics])
         ancien = os.getcwd()
         os.chdir(ICI.parent)
-        try:  # un chemin relatif : l'exécution part du dossier du notebook
+        try:
             propre = verifier(Path("tests/exemples/propre.py"), executer=True, bac_a_sable=None)
         finally:
             os.chdir(ancien)

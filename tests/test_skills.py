@@ -1,8 +1,3 @@
-"""Les skills (en-tête, liens internes), les manifestes de greffon, et la doc hors ligne de wigglystuff.
-
-    python -m unittest discover -s marimo-agent-kit/tests
-"""
-
 import json
 import re
 import sys
@@ -44,7 +39,7 @@ class Skills(unittest.TestCase):
         for page in widgets.glob("*.md"):
             for cible in LIEN.findall(page.read_text(encoding="utf-8")):
                 if cible.endswith((".md", ".py")) and not (page.parent / cible).resolve().exists():
-                    casses.append(f"{page.name} → {cible}")
+                    casses.append(f"{page.name} vers {cible}")
         self.assertLessEqual(len(casses), 5, casses)
 
     def test_manifestes_de_greffon(self):

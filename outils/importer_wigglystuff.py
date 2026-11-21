@@ -1,10 +1,10 @@
 """Recopier la documentation de wigglystuff dans le skill, lisible sans réseau.
 
 À lancer avec un Python où la version voulue de wigglystuff est installée, en donnant une copie
-du dépôt koaning/wigglystuff au commit de la version publiée (« Release 0.6.0 ») : la branche
+du dépôt koaning/wigglystuff au commit de la version publiée ("Release 0.6.0") : la branche
 principale peut décrire des fonctions qui ne sont pas encore publiées.
 
-    git -C ../wigglystuff checkout 3b58e91   # « Release 0.6.0 »
+    git -C ../wigglystuff checkout 3b58e91   # "Release 0.6.0"
     uv run --no-project --with "wigglystuff==0.6.0" python outils/importer_wigglystuff.py ../wigglystuff
 
 Ce qui est écrit dans `skills/wigglystuff/references/` :
@@ -90,7 +90,6 @@ def bloc_api(chemin: str, ecarts: list[str], page: str, table: set[str]) -> tupl
 
 
 def traitlets_documentes(texte: str) -> set[str]:
-    """Les noms de la table « Synced traitlets » d'une page."""
     section = texte.split("## Synced traitlets", 1)
     if len(section) < 2:
         return set()

@@ -1,14 +1,3 @@
-"""Un serveur MCP en entrée/sortie standard, sans dépendance.
-
-Il donne aux assistants (celui de marimo en modes Ask et Agent, Claude Code, Copilot,
-OpenCode…) six outils : vérifier un notebook, vérifier des cellules avant de les insérer,
-lire l'API de marimo installée, chercher dans cette API, lire la doc de wigglystuff, et lire le
-contrat d'écriture.
-
-Le protocole : JSON-RPC 2.0, un message par ligne. Seuls `initialize`, `ping`, `tools/list`
-et `tools/call` sont servis ; les notifications sont ignorées.
-"""
-
 from __future__ import annotations
 
 import json
@@ -28,7 +17,7 @@ OUTILS = [
     {
         "name": "verifier_notebook",
         "description": (
-            "Vérifie un notebook marimo (.py) : marimo check --strict, les règles des erreurs fréquentes d'agent "
+            "Vérifie un notebook marimo (.py) par marimo check, les règles des erreurs fréquentes d'agent "
             "(valeur d'un élément d'interface lue dans sa cellule, mo.md sans f, mutation entre cellules, élément "
             "non lié, asyncio.run…), puis l'exécution de chaque cellule dans le noyau. À lancer après chaque "
             "modification, avant de dire que le notebook est prêt. Corrige toutes les erreurs."
@@ -71,7 +60,7 @@ OUTILS = [
     },
     {
         "name": "chercher_api_marimo",
-        "description": "Cherche un mot dans les noms et les résumés de l'API de marimo installée (ex. « cache », « table », « stop »).",
+        "description": "Cherche un mot dans les noms et les résumés de l'API de marimo installée, par exemple cache, table ou stop.",
         "inputSchema": {"type": "object", "properties": {"motif": {"type": "string"}}, "required": ["motif"]},
     },
     {
@@ -140,7 +129,7 @@ def traiter(message: dict) -> dict | None:
         params = message.get("params") or {}
         try:
             texte, erreur = appeler(params.get("name", ""), params.get("arguments") or {})
-        except Exception as exc:  # l'outil échoue : on le dit à l'assistant au lieu de couper la connexion
+        except Exception as exc:
             texte, erreur = f"{type(exc).__name__} : {exc}", True
         resultat = {"content": [{"type": "text", "text": texte}], "isError": erreur}
     else:

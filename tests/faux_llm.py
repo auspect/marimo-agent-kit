@@ -1,9 +1,3 @@
-"""Un faux point d'accès compatible OpenAI pour les essais : il journalise et imite plusieurs serveurs.
-
-`capacites` règle ce qu'il refuse, comme le ferait un vLLM lancé sans `--enable-auto-tool-choice`
-ou une passerelle qui ne connaît pas `max_completion_tokens`.
-"""
-
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

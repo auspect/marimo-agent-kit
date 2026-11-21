@@ -1,17 +1,3 @@
-"""`mak` : la ligne de commande du kit.
-
-    mak verifier notebook.py [--sans-execution] [--conseils] [--json]
-    mak cellules --notebook notebook.py < cellules.json     (liste JSON de corps de cellules)
-    mak api mo.ui.slider            mak api --chercher cache
-    mak regles [--reference]
-    mak sonde-llm https://llm.interne/v1 mon-modele --cle-env VARIABLE   (LLM pour l'assistant de marimo)
-    mak confidentialite             ce qui sort du poste avec marimo, et quoi régler
-    mak widgets [Nom] [--chercher motif]   documentation hors ligne de wigglystuff
-    mak mcp                         serveur MCP en entrée/sortie standard
-    mak hook [--executer]           hook après écriture (Claude Code, Copilot)
-    mak installer --skill agents --marimo [--hook-claude] [--mcp-claude] [--appliquer]
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -34,7 +20,7 @@ def main(argv: list[str] | None = None) -> int:
     parseur.add_argument("--version", action="version", version=f"marimo-agent-kit {__version__}")
     sous = parseur.add_subparsers(dest="commande", required=True)
 
-    p = sous.add_parser("verifier", help="marimo check --strict, règles d'agent, exécution")
+    p = sous.add_parser("verifier", help="marimo check, règles d'agent, exécution")
     p.add_argument("notebooks", nargs="+", type=Path)
     p.add_argument("--sans-execution", action="store_true", help="ne pas exécuter les cellules")
     p.add_argument("--conseils", action="store_true", help="lister aussi les conseils de lisibilité")

@@ -1,14 +1,3 @@
-"""Vérifier un notebook en trois étapes, et dire lesquelles ont vraiment tourné.
-
-1. `marimo check --strict --format json` : la structure (graphe, syntaxe, formatage). Sans
-   `--strict`, `marimo check` rend le code 0 même quand il affiche `error[...]`.
-2. Les règles de ce paquet : ce que `marimo check` ne voit pas.
-3. L'exécution par `marimo export session` : chaque cellule tourne dans le vrai noyau, et
-   chaque erreur est rapportée à sa cellule (là où `python notebook.py` s'arrête à la première,
-   et laisse passer `asyncio.run`). Effet de bord : marimo écrit
-   `__marimo__/session/<notebook>.json` à côté du notebook.
-"""
-
 from __future__ import annotations
 
 import importlib.util
@@ -21,10 +10,17 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from .carnet import Carnet, lire_fichier
 from .environnement import env_sobre
 from .regles import GRAVITES, Diagnostic, appliquer
+
+MARGE_HORLOGE_S = 1
+
+
+def nombre(n: int, mot: str) -> str:
+    return f"{n} {mot}{'s' if n > 1 else ''}"
 
 GRAVITE_MARIMO = {"breaking": "erreur", "runtime": "erreur", "formatting": "conseil"}
 
@@ -32,7 +28,7 @@ GRAVITE_MARIMO = {"breaking": "erreur", "runtime": "erreur", "formatting": "cons
 @dataclass
 class Etape:
     nom: str
-    etat: str  # "fait", "sauté" ou "échec"
+    etat: Literal["fait", "sauté", "échec"]
     detail: str = ""
 
 
@@ -68,22 +64,21 @@ class Rapport:
 
     def en_texte(self, conseils: bool = False) -> str:
         compte = self.compte()
-        lignes = [f"{self.chemin} : {self.statut} — {compte['erreur']} erreur(s), "
-                  f"{compte['avertissement']} avertissement(s), {compte['conseil']} conseil(s)"]
+        lignes = [f"{self.chemin}, {self.statut}. {nombre(compte['erreur'], 'erreur')}, "
+                  f"{nombre(compte['avertissement'], 'avertissement')}, {nombre(compte['conseil'], 'conseil')}."]
         for etape in self.etapes:
-            lignes.append(f"  [{etape.etat}] {etape.nom}" + (f" : {etape.detail}" if etape.detail else ""))
+            lignes.append(f"  [{etape.etat}] {etape.nom}" + (f". {etape.detail}" if etape.detail else ""))
         for d in self.diagnostics:
             if d.gravite == "conseil" and not conseils:
                 continue
             ou = f"{d.etiquette}, ligne {d.ligne}" if d.ligne else d.etiquette
-            lignes.append(f"\n{d.gravite.upper()} {d.code} {d.nom} ({ou}, {d.source})\n  {d.message}\n  → {d.correction}")
+            lignes.append(f"\n{d.gravite.upper()} {d.code} {d.nom}, {ou}, source {d.source}\n  {d.message}\n  Correction. {d.correction}")
         if compte["conseil"] and not conseils:
-            lignes.append(f"\n{compte['conseil']} conseil(s) de lisibilité : `--conseils` pour les lire.")
+            lignes.append(f"\n{nombre(compte['conseil'], 'conseil')} de lisibilité. `--conseils` les affiche.")
         return "\n".join(lignes)
 
 
 def commande_marimo(chemin: Path | None = None, imposee: str | None = None) -> list[str]:
-    """La commande qui lance marimo, de la plus proche du projet à la plus générale."""
     imposee = imposee or os.environ.get("MAK_MARIMO")
     if imposee:
         return shlex.split(imposee)
@@ -112,11 +107,11 @@ def _cellule_de_ligne(carnet: Carnet, ligne: int | None):
 
 
 def lancer_marimo_check(carnet: Carnet, commande: list[str], delai: int = 120) -> tuple[Etape, list[Diagnostic]]:
-    nom = "marimo check --strict"
+    nom = "marimo check"
     if not commande:
         return Etape(nom, "échec", "marimo introuvable (ni dans le projet, ni dans ce Python, ni par uvx)"), []
     try:
-        sortie = subprocess.run([*commande, "check", "--strict", "--format", "json", str(carnet.chemin)],
+        sortie = subprocess.run([*commande, "check", "--format", "json", str(carnet.chemin)],
                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=delai,
                                 env=env_sobre())
     except (OSError, subprocess.SubprocessError) as erreur:
@@ -138,7 +133,7 @@ def lancer_marimo_check(carnet: Carnet, commande: list[str], delai: int = 120) -
             message=probleme.get("message", ""), correction=correction,
             cellule=cellule.index if cellule else None, etiquette=cellule.etiquette if cellule else "notebook",
             ligne=probleme.get("line"), source="marimo check"))
-    return Etape(nom, "fait", f"{len(diagnostics)} problème(s)"), diagnostics
+    return Etape(nom, "fait", nombre(len(diagnostics), "problème")), diagnostics
 
 
 def lancer_execution(carnet: Carnet, commande: list[str], delai: int = 300, bac_a_sable: str | None = "auto"
@@ -162,12 +157,13 @@ def lancer_execution(carnet: Carnet, commande: list[str], delai: int = 300, bac_
         return Etape(nom, "échec", f"plus de {delai} s : une cellule attend peut-être une saisie, ou le calcul est trop long"), []
     except OSError as erreur:
         return Etape(nom, "échec", str(erreur)), []
+    echec = Etape(nom, "échec", (sortie.stderr or sortie.stdout).strip()[-600:] or "aucun instantané écrit")
+    if not instantane.exists() or instantane.stat().st_mtime < debut - MARGE_HORLOGE_S:
+        return echec, []
     try:
-        if instantane.stat().st_mtime < debut - 1:  # un instantané d'une exécution précédente ne prouve rien
-            raise OSError("instantané ancien")
         session = json.loads(instantane.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return Etape(nom, "échec", (sortie.stderr or sortie.stdout).strip()[-600:] or "aucun instantané écrit"), []
+        return echec, []
     cellules = session.get("cells", [])
     alignees = len(cellules) == len(carnet.cellules)
     diagnostics, bloquees = [], 0
@@ -182,25 +178,24 @@ def lancer_execution(carnet: Carnet, commande: list[str], delai: int = 300, bac_
             cellule = carnet.cellules[index] if alignees else None
             diagnostics.append(Diagnostic(
                 code="EXEC", nom="execution", gravite="erreur", message=valeur or sortie_cellule.get("ename", "erreur"),
-                correction="Corrige la cause dans cette cellule ; les cellules qui en dépendent repartiront.",
+                correction="Corrige la cause dans cette cellule. Les cellules qui en dépendent repartiront.",
                 cellule=cellule.index if cellule else index, etiquette=cellule.etiquette if cellule else f"cellule {index + 1}",
                 ligne=cellule.ligne if cellule else None, source="exécution"))
-    detail = f"{len(cellules)} cellule(s), {len(diagnostics)} en erreur"
+    detail = f"{nombre(len(cellules), 'cellule')}, {len(diagnostics)} en erreur"
     if bloquees:
-        detail += f", {bloquees} bloquée(s) par une erreur en amont"
-    detail += f" ; {' '.join(options)}"
+        detail += f", {bloquees} {'bloquées' if bloquees > 1 else 'bloquée'} par une erreur en amont"
+    detail += f", avec {' '.join(options)}"
     return Etape(nom, "fait", detail), diagnostics
 
 
-def _fusionner(statiques: list[Diagnostic], executes: list[Diagnostic]) -> list[Diagnostic]:
-    """Une erreur d'exécution dans une cellule déjà signalée confirme la règle au lieu de la répéter."""
+def _confirmer_par_execution(statiques: list[Diagnostic], executes: list[Diagnostic]) -> list[Diagnostic]:
     restants = []
     for d in executes:
         cause = next((s for s in statiques if s.gravite == "erreur" and s.cellule == d.cellule), None)
         if cause is None:
             restants.append(d)
         else:
-            cause.message += f" Confirmé à l'exécution : « {d.message[:160]} »."
+            cause.message += f" L'exécution le confirme : \"{d.message[:160]}\"."
     return restants
 
 
@@ -225,7 +220,7 @@ def verifier(chemin: str | Path, executer: bool = True, marimo: str | None = Non
     rapport.etapes.append(etape)
     rapport.diagnostics += diagnostics
     regles = appliquer(carnet, selection, ignorer)
-    rapport.etapes.append(Etape("règles marimo-agent-kit", "fait", f"{len(regles)} constat(s)"))
+    rapport.etapes.append(Etape("règles marimo-agent-kit", "fait", nombre(len(regles), "constat")))
     rapport.diagnostics += regles
     if executer:
         if any(d.source == "marimo check" and d.code.startswith("MB") for d in diagnostics):  # cassant
@@ -234,7 +229,7 @@ def verifier(chemin: str | Path, executer: bool = True, marimo: str | None = Non
         else:
             etape, diagnostics = lancer_execution(carnet, commande, delai, bac_a_sable)
             rapport.etapes.append(etape)
-            rapport.diagnostics += _fusionner(regles, diagnostics)
+            rapport.diagnostics += _confirmer_par_execution(regles, diagnostics)
     else:
         rapport.etapes.append(Etape("exécution (marimo export session)", "sauté", "non demandée"))
     ordre = {g: i for i, g in enumerate(GRAVITES)}

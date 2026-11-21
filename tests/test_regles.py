@@ -1,8 +1,3 @@
-"""Chaque règle sur un cas qui doit la déclencher et un cas voisin qui ne doit pas.
-
-    python -m unittest discover -s marimo-agent-kit/tests
-"""
-
 import sys
 import unittest
 from pathlib import Path
@@ -50,13 +45,11 @@ class Erreurs(unittest.TestCase):
     def test_md_sans_f(self):
         self.assertIn("AG004", codes("moyenne = 2.5", "mo.md('La moyenne vaut {moyenne}')"))
         self.assertNotIn("AG004", codes("moyenne = 2.5", "mo.md(f'La moyenne vaut {moyenne}')"))
-        # LaTeX, code, gabarit de batch et nom inconnu ne sont pas des oublis
         self.assertNotIn("AG004", codes("a = 1", r"mo.md(r'$\frac{a}{b}$ et `{a}`')"))
         self.assertNotIn("AG004", codes("a = 1", "s = mo.md('Seuil {a}').batch(a=mo.ui.slider(0, 1))"))
         self.assertNotIn("AG004", codes("mo.md('{inconnu}')"))
 
     def test_secret_en_clair(self):
-        # assemblés ici pour que le contrôle de secrets du dépôt ne prenne pas l'essai pour une fuite
         fausse_cle = "sk-" + "ant-api03-" + "abcdefghijklmnopqrstuvwxyz0123"
         self.assertIn("AG005", codes(f"cle = '{fausse_cle}'"))
         self.assertIn("AG005", codes("api" + "_key = " + "'a8f5f167f44f4964e6c998dee827110c'"))

@@ -1,11 +1,3 @@
-"""Lire l'API de marimo dans la version installée, au lieu de la deviner.
-
-Les listes d'API recopiées dans les prompts vieillissent : celle que l'assistant de marimo
-0.25.2 envoie au modèle donne encore `mo.ui.button(value=None, kind='primary')`. Ici, la
-signature et la documentation viennent de `inspect`, dans le Python du projet quand on le
-trouve.
-"""
-
 from __future__ import annotations
 
 import importlib.util
@@ -137,15 +129,15 @@ def en_texte(resultat: dict) -> str:
     if "trouves" in resultat:
         if not resultat["trouves"]:
             return f"{tete} : aucun nom ne correspond."
-        return tete + "\n" + "\n".join(f"  {t['nom']} — {t['resume']}" for t in resultat["trouves"])
+        return tete + "\n" + "\n".join(f"  {t['nom']:<32} {t['resume']}" for t in resultat["trouves"])
     if "introuvable" in resultat:
         proches = ", ".join(resultat["proches"]) or "aucun"
         return f"{tete} : `{resultat['introuvable']}` n'existe pas. Noms proches : {proches}."
-    lignes = [f"{tete} — {resultat['nom']} ({resultat['genre']})"]
+    lignes = [f"{resultat['nom']}, {resultat['genre']} de {tete}"]
     if resultat.get("signature"):
         lignes.append(f"{resultat['nom']}{resultat['signature']}")
     if resultat.get("doc"):
         lignes += ["", resultat["doc"]]
     if resultat.get("membres"):
-        lignes += ["", "Membres :"] + [f"  {m['nom']} — {m['resume']}" for m in resultat["membres"]]
+        lignes += ["", "Membres :"] + [f"  {m['nom']:<24} {m['resume']}" for m in resultat["membres"]]
     return "\n".join(lignes)

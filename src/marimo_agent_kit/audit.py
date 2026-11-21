@@ -1,15 +1,9 @@
-"""Le rapport dans le notebook lui-même : une cellule `mak.audit()` montre ce qui cloche.
-
-C'est la face humaine du kit : tu vois ce que l'agent a laissé passer, et tu as le message
-à lui renvoyer. La cellule lit le fichier sur le disque ; relance-la après une modification.
-"""
-
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-from .verifier import verifier
+from .verifier import nombre, verifier
 
 COULEUR = {"erreur": "danger", "avertissement": "warn"}
 
@@ -41,8 +35,8 @@ def audit(chemin: str | Path | None = None, executer: bool = False, conseils: bo
     compte = rapport.compte()
     etapes = " · ".join(f"{e.nom} : {e.etat}" for e in rapport.etapes)
     resume = mo.md(
-        f"**{chemin.name} — {rapport.statut}.** {compte['erreur']} erreur(s), {compte['avertissement']} "
-        f"avertissement(s), {compte['conseil']} conseil(s).\n\n<small>{etapes}</small>"
+        f"**{chemin.name}, {rapport.statut}.** {nombre(compte['erreur'], 'erreur')}, "
+        f"{nombre(compte['avertissement'], 'avertissement')}, {nombre(compte['conseil'], 'conseil')}.\n\n<small>{etapes}</small>"
     )
     genre = "danger" if compte["erreur"] else "warn" if compte["avertissement"] else "success"
     lignes = [

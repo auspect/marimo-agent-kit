@@ -70,7 +70,7 @@ mak verifier notebook.py --conseils
 mak cellules --notebook notebook.py < proposees.json
 ```
 
-`mak verifier` lance `marimo check --strict`, applique les règles et exécute chaque cellule.
+`mak verifier` lance `marimo check` et lit tous ses constats, applique les règles et exécute chaque cellule.
 `--conseils` ajoute les conseils de lisibilité. `mak cellules` juge des cellules avant leur
 insertion.
 

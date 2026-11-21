@@ -1,10 +1,3 @@
-"""`mak widgets` : la documentation de wigglystuff recopiée dans le skill, et la version installée.
-
-La doc vient de `skills/wigglystuff/references/` (générée par `outils/importer_wigglystuff.py`).
-Si le projet a une autre version de wigglystuff, on le dit, et on lit la signature et les
-traitlets dans le paquet installé, qui font foi.
-"""
-
 from __future__ import annotations
 
 import difflib
@@ -54,11 +47,10 @@ def catalogue() -> dict:
 
 
 def installe(nom: str = "", depuis: Path | None = None) -> dict | None:
-    """Version (et, pour un nom, signature et traitlets) de wigglystuff dans le Python du projet."""
     python = python_avec_marimo(depuis)
     if python is None:
         return None
-    if python[0] == "uv":  # `uv run --with marimo` : ajouter wigglystuff à l'environnement jetable
+    if python[0] == "uv":
         python = [*python[:-1], "--with", "wigglystuff", python[-1]]
     try:
         sortie = subprocess.run([*python, "-c", SCRIPT_INSTALLE, nom], capture_output=True, text=True,
@@ -103,13 +95,13 @@ def en_texte(nom: str | None = None, motif: str | None = None, verifier_installe
     if motif:
         trouves = chercher(motif)
         if not trouves:
-            return f"Aucun widget ne parle de « {motif} »."
-        return "\n".join(f"{e['nom']} — {e['resume']}" for e in trouves)
+            return f'Aucun widget ne parle de "{motif}".'
+        return "\n".join(f"{e['nom']:<26} {e['resume']}" for e in trouves)
     if not nom:
         local = installe() if verifier_installe else None
         lignes = [ligne_version(cat["version"], local) if verifier_installe else f"Doc : wigglystuff {cat['version']}.", ""]
-        lignes += [f"{e['nom']} — {e['resume']}" for e in cat["widgets"]]
-        lignes += ["", "Détail : mak widgets <Nom>. Guide de choix : skill wigglystuff, section « Choisir »."]
+        lignes += [f"{e['nom']:<26} {e['resume']}" for e in cat["widgets"]]
+        lignes += ["", "`mak widgets <Nom>` affiche une page. La section \"Choisir\" du skill wigglystuff aide à choisir."]
         return "\n".join(lignes)
     entree = trouver(nom)
     if entree is None:

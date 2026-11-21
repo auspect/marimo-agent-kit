@@ -1,6 +1,4 @@
-"""Sonder un LLM compatible OpenAI avant de le brancher dans marimo comme fournisseur personnalisé.
-
-marimo 0.25.2 parle à un fournisseur personnalisé au nom inconnu par `POST {base_url}/chat/completions`
+"""marimo 0.25.2 parle à un fournisseur personnalisé au nom inconnu par `POST {base_url}/chat/completions`
 (pydantic-ai, `OpenAIChatModel`), avec `Authorization: Bearer <clé>` et `api-key: <clé>`. Selon la
 fonction utilisée, il ajoute :
 
@@ -10,9 +8,6 @@ fonction utilisée, il ajoute :
 | Autocomplétion en ligne | `max_completion_tokens: 1024`, sans flux |
 | Génération ou modification de cellule | un outil `final_result` et `tool_choice: "required"` |
 | Chat en modes Ask et Agent (outils MCP compris) | les outils, `tool_choice: "auto"` |
-
-La sonde envoie ces quatre requêtes, réduites au minimum, et dit lesquelles passent. Bibliothèque
-standard seulement : elle tourne sur un poste où l'on n'installe pas ce qu'on veut.
 """
 
 from __future__ import annotations
@@ -51,7 +46,6 @@ def _envoyer(url: str, corps: dict, entetes: dict[str, str], contexte: ssl.SSLCo
 
 
 def _lire_flux(texte: str) -> tuple[str, list[dict], bool]:
-    """Texte et appels d'outil d'une réponse en flux (server-sent events)."""
     contenu, appels, flux = "", {}, False
     for ligne in texte.splitlines():
         if not ligne.startswith("data:"):
@@ -91,7 +85,7 @@ def sonder(base_url: str, modele: str, cle: str = "inutilise", entetes: dict[str
     tous_entetes = {"Authorization": f"Bearer {cle}", "api-key": cle, **(entetes or {})}
     contexte = None
     if not verifier_tls:
-        contexte = ssl._create_unverified_context()  # noqa: S323 — seulement sur demande explicite
+        contexte = ssl._create_unverified_context()
     elif ca:
         contexte = ssl.create_default_context(cafile=ca)
     systeme = {"role": "system", "content": "Tu aides à écrire des notebooks marimo. Réponds en une phrase."}
@@ -108,11 +102,11 @@ def sonder(base_url: str, modele: str, cle: str = "inutilise", entetes: dict[str
     if code == 200:
         contenu, _, flux = _lire_flux(texte)
         essais.append(Essai("chat, mode Manual (flux)", flux and bool(contenu.strip()),
-                            f"« {contenu.strip()[:60]} »" if flux else "réponse reçue, mais pas en flux SSE"))
+                            f'réponse "{contenu.strip()[:60]}"' if flux else "réponse reçue, mais pas en flux SSE"))
     else:
         essais.append(Essai("chat, mode Manual (flux)", False, _resume_erreur(code, texte) if code else texte))
         if code == 0:
-            return essais  # rien ne passera : inutile d'insister
+            return essais
 
     code, texte = envoyer({"messages": [systeme, {"role": "user", "content": "Complète : print('bon"}],
                            "stream": False, "max_completion_tokens": 16})
@@ -150,7 +144,6 @@ def sonder(base_url: str, modele: str, cle: str = "inutilise", entetes: dict[str
 
 def bloc_configuration(nom: str, base_url: str, modele: str, variable_cle: str | None,
                        entetes: dict[str, str] | None, ca: str | None) -> str:
-    # la clé n'est jamais écrite : une référence `env:` à la variable, ou une valeur factice
     reference = f'"env:{variable_cle}"' if variable_cle else '"inutilise"  # marimo exige une clé, même factice'
     lignes = [f"[tool.marimo.ai.custom_providers.{nom}]", f"base_url = {json.dumps(base_url)}", "api_key = " + reference]
     if ca:
@@ -163,12 +156,12 @@ def bloc_configuration(nom: str, base_url: str, modele: str, variable_cle: str |
 
 
 def en_texte(essais: list[Essai], configuration: str) -> str:
-    lignes = [f"[{'ok' if e.ok else 'non'}] {e.fonction} — {e.detail}" for e in essais]
+    lignes = [f"[{'ok' if e.ok else 'non'}] {e.fonction}. {e.detail}" for e in essais]
     ok = {e.fonction.split(" (")[0] for e in essais if e.ok}
     if len(ok) == 4:
         verdict = "Tout passe : chat, autocomplétion, génération de cellule et outils (dont ceux de marimo-agent-kit)."
     elif "chat, mode Manual" in ok:
-        verdict = ("Utilisable en mode Manual : le contrat `[ai] rules` s'applique, mais ce qui est marqué « non » "
+        verdict = ("Utilisable en mode Manual. Le contrat `[ai] rules` s'applique, mais ce qui est marqué \"non\" "
                    "échouera dans marimo.")
     else:
         verdict = "marimo ne pourra pas discuter avec ce point d'accès tel quel."

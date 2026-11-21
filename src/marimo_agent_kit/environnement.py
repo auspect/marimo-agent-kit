@@ -1,5 +1,3 @@
-"""Les variables qui empêchent marimo et pydantic-ai de parler pour rien, posées par le kit sur ce qu'il lance."""
-
 from __future__ import annotations
 
 import os
@@ -13,5 +11,4 @@ ENV_SOBRE = {nom: valeur for nom, (valeur, _) in VARIABLES.items()}
 
 
 def env_sobre() -> dict[str, str]:
-    """L'environnement courant, avec ces variables : pour chaque marimo que le kit lance."""
     return {**os.environ, **ENV_SOBRE}

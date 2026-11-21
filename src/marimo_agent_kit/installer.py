@@ -1,25 +1,10 @@
-"""Poser le kit dans un projet, sans rien écraser.
-
-Par défaut, l'installateur dit ce qu'il ferait ; `--appliquer` écrit. Chaque morceau se
-demande à part :
-
-- `--skill agents|claude|github` : les skills (`marimo-agent-kit`, `wigglystuff`, `marimo-lens`,
-  ou ceux de `--seulement`), dans `.agents/skills/` (lu par la plupart des agents),
-  `.claude/skills/` ou `.github/skills/` ;
-- `--marimo` : le contrat et le serveur MCP dans `[tool.marimo]` de `pyproject.toml`, pour
-  l'assistant intégré de marimo ;
-- `--hook-claude` : la vérification après chaque écriture, dans `.claude/settings.json` ;
-- `--mcp-claude` : le serveur MCP pour Claude Code, dans `.mcp.json`.
-
-Un serveur MCP lance du code chez quiconque ouvre le projet : il ne se pose que sur demande.
-"""
-
 from __future__ import annotations
 
 import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from .contrat import contrat_court, reference_regles
 from .ressources import SKILLS, dossier_skill
@@ -31,24 +16,22 @@ DOSSIERS_SKILL = {"agents": ".agents/skills", "claude": ".claude/skills", "githu
 @dataclass
 class Action:
     cible: str
-    etat: str  # "à créer", "créé", "déjà là", "à compléter à la main", "laissé (diffère)"
+    etat: Literal["à créer", "créé", "déjà là", "à compléter à la main", "laissé (diffère)"]
     detail: str = ""
 
 
 def commande_mak(source: str | None = None) -> list[str]:
-    """La commande qui lance `mak` depuis un autre processus (marimo, Claude Code)."""
     if source:
         return ["uvx", "--from", source, "mak"]
     if shutil.which("mak"):
         return ["mak"]
     racine = ICI.parent.parent
-    if (racine / "pyproject.toml").exists():  # copie de travail du dépôt
+    if (racine / "pyproject.toml").exists():
         return ["uvx", "--from", str(racine), "mak"]
     return ["uvx", "--from", "marimo-agent-kit", "mak"]
 
 
 def fichiers_du_skill(nom: str = "marimo-agent-kit") -> dict[str, bytes]:
-    """Les fichiers d'un skill tels qu'ils doivent être posés ; la référence des règles est régénérée."""
     racine = dossier_skill(nom)
     fichiers = {str(c.relative_to(racine)).replace("\\", "/"): c.read_bytes()
                 for c in sorted(racine.rglob("*")) if c.is_file() and "__pycache__" not in c.parts}

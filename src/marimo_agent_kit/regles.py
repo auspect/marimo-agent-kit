@@ -1,17 +1,3 @@
-"""Les règles : ce que `marimo check` ne voit pas et qu'un agent écrit souvent de travers.
-
-Chaque règle a un code `AGnnn`, une gravité, une raison et une correction. La gravité dit ce
-que l'agent doit en faire :
-
-- `erreur` : la cellule plante, ou montre un résultat faux. À corriger avant de rendre la main.
-- `avertissement` : le notebook tourne, mais la réactivité ou la lecture en souffre. À corriger,
-  sauf raison dite à l'utilisateur.
-- `conseil` : lisibilité pour un humain. À appliquer quand c'est simple.
-
-Les règles ne lisent que la syntaxe : elles ne connaissent pas les types. Une règle qui se
-trompe se désactive par `--ignorer AG101` ; sa raison est dans `reference/regles.md`.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -33,7 +19,7 @@ class Diagnostic:
     gravite: str
     message: str
     correction: str
-    cellule: int | None = None  # index à partir de 0
+    cellule: int | None = None
     etiquette: str = ""
     ligne: int | None = None
     source: str = "regles"
@@ -65,10 +51,9 @@ def regle(code: str, nom: str, gravite: str, resume: str, pourquoi: str, correct
     return enregistrer
 
 
-# ---------------------------------------------------------------- outils communs
-
 BUILTINS = set(dir(builtins)) | {"__file__", "__name__", "__doc__", "__builtins__", "__spec__", "__loader__", "__package__"}
 
+NOMS_JUPYTER = ("display", "get_ipython")
 UI_AFFICHAGE = {"table", "dataframe", "data_explorer", "altair_chart", "plotly", "matplotlib", "tabs", "anywidget"}
 UI_ENVELOPPES = {"array", "dictionary", "batch"}
 UI_CONTINUS = {"slider", "range_slider", "number", "text", "text_area", "dropdown", "multiselect", "radio",
@@ -82,12 +67,10 @@ LOURDS = {"fit", "fit_transform", "fit_predict", "train", "minimize", "urlopen",
 MODULES_BAYES = {"pymc", "bambi", "numpyro", "nutpie", "pystan", "cmdstanpy"}
 MUTANTES = {"append", "extend", "insert", "add", "discard", "clear", "remove", "setdefault", "popitem",
             "insert_column", "drop_in_place"}
-MUTANTES_AMBIGUES = {"sort", "reverse", "update", "pop"}  # fonctionnelles sur un DataFrame polars
+MUTANTES_AMBIGUES = {"sort", "reverse", "update", "pop"}
 
 
 class Contexte:
-    """Ce que les règles partagent : alias de marimo, modules importés, éléments d'interface."""
-
     def __init__(self, carnet: Carnet):
         self.carnet = carnet
         self.resolution: dict[str, str] = {}
@@ -100,16 +83,14 @@ class Contexte:
                 for noeud in ast.walk(instruction):
                     for enfant in ast.iter_child_nodes(noeud):
                         self.parents[id(enfant)] = noeud
-        self.ui: dict[str, str] = {}  # nom public -> genre d'élément ("slider", "form"…)
-        self.ui_cellule: dict[str, int] = {}
+        self.genres_ui: dict[str, str] = {}
         for cellule in carnet.cellules:
             for instruction in cellule.instructions:
                 if isinstance(instruction, ast.Assign) and len(instruction.targets) == 1:
                     cible = instruction.targets[0]
                     genre = self.genre_ui(instruction.value)
                     if isinstance(cible, ast.Name) and genre:
-                        self.ui[cible.id] = genre
-                        self.ui_cellule[cible.id] = cellule.index
+                        self.genres_ui[cible.id] = genre
         self.lectures_ailleurs: dict[int, set[str]] = {}
         for cellule in carnet.cellules:
             autres = set().union(*(c.lectures for c in carnet.cellules if c is not cellule)) if len(carnet.cellules) > 1 else set()
@@ -118,8 +99,7 @@ class Contexte:
     def parent(self, noeud: ast.AST) -> ast.AST | None:
         return self.parents.get(id(noeud))
 
-    def pointe(self, noeud: ast.AST) -> str:
-        """`mo.ui.slider` pour un appel ou un attribut ; "" si la forme n'est pas un nom pointé."""
+    def nom_pointe(self, noeud: ast.AST) -> str:
         morceaux = []
         while isinstance(noeud, ast.Attribute):
             morceaux.append(noeud.attr)
@@ -129,8 +109,7 @@ class Contexte:
             return ".".join(reversed(morceaux))
         return ""
 
-    def module_de(self, nom_pointe: str) -> str:
-        """`plt.show` -> `matplotlib.pyplot.show`, d'après les imports du notebook."""
+    def nom_complet(self, nom_pointe: str) -> str:
         tete, _, reste = nom_pointe.partition(".")
         base = self.resolution.get(tete)
         if base is None:
@@ -142,15 +121,15 @@ class Contexte:
         return tete in self.mo and (not suite or reste in suite)
 
     def genre_ui(self, noeud: ast.AST) -> str:
-        """Le genre d'élément construit par cette expression, ou "" si ce n'en est pas un."""
         if not isinstance(noeud, ast.Call):
             return ""
         fonction = noeud.func
         if isinstance(fonction, ast.Attribute) and fonction.attr in ("form", "batch") and self.genre_ui(fonction.value):
             return fonction.attr
-        if isinstance(fonction, ast.Attribute) and fonction.attr == "batch":  # mo.md("…").batch(…)
+        if isinstance(fonction, ast.Attribute) and fonction.attr == "batch" and isinstance(fonction.value, ast.Call) \
+                and self.est_mo(self.nom_pointe(fonction.value.func), "md"):
             return "batch"
-        nom = self.pointe(fonction)
+        nom = self.nom_pointe(fonction)
         tete, _, reste = nom.partition(".")
         if tete in self.mo and reste.startswith("ui.") and reste.count(".") == 1:
             return reste[3:]
@@ -163,7 +142,6 @@ class Contexte:
 
 
 def premier_niveau(instructions: list[ast.stmt]) -> Iterator[ast.AST]:
-    """Les nœuds d'une cellule, sans entrer dans les fonctions, classes et lambdas."""
     pile: list[ast.AST] = list(instructions)
     while pile:
         noeud = pile.pop(0)
@@ -184,8 +162,7 @@ def cellules_de_code(carnet: Carnet) -> Iterator[Cellule]:
             yield cellule
 
 
-def texte_hors_maths(texte: str) -> str:
-    """Masque les formules, le code en ligne et les blocs de code, en gardant les positions."""
+def masquer_maths_et_code(texte: str) -> str:
     def blanc(m: re.Match) -> str:
         return " " * len(m.group(0))
 
@@ -194,12 +171,10 @@ def texte_hors_maths(texte: str) -> str:
     return texte
 
 
-# ---------------------------------------------------------------- erreurs
-
 @regle("AG001", "valeur-ui-meme-cellule", "erreur",
        "Lire `.value` d'un élément d'interface dans la cellule qui le crée.",
        "marimo lève `RuntimeError: Accessing the value of a UIElement in the cell that created it is not allowed`.",
-       "Crée l'élément dans une cellule, lis `.value` dans une autre.")
+       "Crée l'élément dans une cellule, puis lis `.value` dans une autre.")
 def _valeur_meme_cellule(carnet: Carnet, ctx: Contexte):
     for cellule in carnet.cellules:
         crees = set()
@@ -218,32 +193,30 @@ def _valeur_meme_cellule(carnet: Carnet, ctx: Contexte):
 
 @regle("AG002", "asyncio-run", "erreur",
        "Appeler `asyncio.run()` ou `run_until_complete()` dans une cellule.",
-       "Le noyau de marimo tourne déjà dans une boucle d'événements : l'appel échoue dans l'éditeur, une app et un "
-       "export (`asyncio.run() cannot be called from a running event loop`), alors qu'il passe avec `python notebook.py`.",
-       "Écris `resultat = await coroutine()` directement dans la cellule : marimo accepte `await` au premier niveau.")
+       "Le noyau de marimo tourne déjà dans une boucle d'événements. L'appel échoue dans l'éditeur, dans une app et dans un export avec `asyncio.run() cannot be called from a running event loop`. Il passe pourtant avec `python notebook.py`.",
+       "Écris `resultat = await coroutine()` directement dans la cellule. marimo accepte `await` au premier niveau.")
 def _asyncio_run(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in tous(cellule.instructions):
             if isinstance(noeud, ast.Call):
-                nom = ctx.module_de(ctx.pointe(noeud.func))
+                nom = ctx.nom_complet(ctx.nom_pointe(noeud.func))
                 if nom == "asyncio.run" or (isinstance(noeud.func, ast.Attribute) and noeud.func.attr == "run_until_complete"):
-                    yield cellule, noeud, f"`{ctx.pointe(noeud.func) or 'run_until_complete'}(…)` échouera dans le noyau de marimo."
+                    yield cellule, noeud, f"`{ctx.nom_pointe(noeud.func) or 'run_until_complete'}(...)` échouera dans le noyau de marimo."
 
 
 @regle("AG003", "habitude-jupyter", "erreur",
-       "`display()`, `get_ipython()` ou `IPython.display` dans une cellule.",
-       "Ces noms n'existent pas dans marimo : `display(df)` lève `NameError`.",
-       "Mets l'objet en dernière expression de la cellule, ou `mo.output.append(objet)` pour plusieurs sorties ; "
-       "`mo.md`, `mo.Html`, `mo.image` remplacent `IPython.display`.")
+       "Utiliser `display()`, `get_ipython()` ou `IPython.display` dans une cellule.",
+       "Ces noms n'existent pas dans marimo. `display(df)` lève `NameError`.",
+       "Mets l'objet en dernière expression de la cellule. Pour plusieurs sorties, utilise `mo.output.append(objet)`. `mo.md`, `mo.Html` et `mo.image` remplacent `IPython.display`.")
 def _jupyter(carnet: Carnet, ctx: Contexte):
     definis = carnet.definitions
     for cellule in carnet.cellules:
         for noeud in tous(cellule.instructions):
-            if isinstance(noeud, ast.Call) and isinstance(noeud.func, ast.Name) and noeud.func.id in ("display", "get_ipython"):
+            if isinstance(noeud, ast.Call) and isinstance(noeud.func, ast.Name) and noeud.func.id in NOMS_JUPYTER:
                 if noeud.func.id not in definis:
-                    yield cellule, noeud, f"`{noeud.func.id}(…)` n'existe pas dans marimo."
+                    yield cellule, noeud, f"`{noeud.func.id}(...)` n'existe pas dans marimo."
             elif isinstance(noeud, ast.ImportFrom) and (noeud.module or "").startswith("IPython"):
-                yield cellule, noeud, f"`from {noeud.module} import …` : une habitude de Jupyter."
+                yield cellule, noeud, f"`from {noeud.module} import ...` vient de Jupyter."
             elif isinstance(noeud, ast.Import) and any(a.name.startswith("IPython") for a in noeud.names):
                 yield cellule, noeud, "`import IPython` : une habitude de Jupyter."
 
@@ -252,14 +225,14 @@ PLACEHOLDER = re.compile(r"(?<![\\\w^_{$])\{([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-
 
 
 @regle("AG004", "md-sans-f", "erreur",
-       "`mo.md(\"… {variable} …\")` sans le préfixe `f`.",
-       "Sans `f`, marimo affiche les accolades telles quelles : le lecteur voit `{moyenne}` au lieu du nombre.",
-       "Ajoute le préfixe : `mo.md(f\"… {variable} …\")` (et `rf\"…\"` s'il y a des antislashs LaTeX).")
+       "Écrire `mo.md(\"... {variable} ...\")` sans le préfixe `f`.",
+       "Sans `f`, marimo affiche les accolades telles quelles. Le lecteur voit `{moyenne}` au lieu du nombre.",
+       "Ajoute le préfixe, par exemple `mo.md(f\"... {variable} ...\")`. Avec des antislashs LaTeX, écris `rf\"...\"`.")
 def _md_sans_f(carnet: Carnet, ctx: Contexte):
     definis = carnet.definitions
     for cellule in carnet.cellules:
         for noeud in tous(cellule.instructions):
-            if not (isinstance(noeud, ast.Call) and ctx.est_mo(ctx.pointe(noeud.func), "md") and noeud.args):
+            if not (isinstance(noeud, ast.Call) and ctx.est_mo(ctx.nom_pointe(noeud.func), "md") and noeud.args):
                 continue
             argument = noeud.args[0]
             if not (isinstance(argument, ast.Constant) and isinstance(argument.value, str)):
@@ -267,10 +240,10 @@ def _md_sans_f(carnet: Carnet, ctx: Contexte):
             parent = ctx.parent(noeud)
             if isinstance(parent, ast.Attribute) and parent.attr in ("batch", "format"):
                 continue
-            noms = [m.group(1) for m in PLACEHOLDER.finditer(texte_hors_maths(argument.value)) if m.group(1) in definis]
+            noms = [m.group(1) for m in PLACEHOLDER.finditer(masquer_maths_et_code(argument.value)) if m.group(1) in definis]
             if noms:
                 liste = ", ".join(f"`{{{n}}}`" for n in dict.fromkeys(noms))
-                yield cellule, noeud, f"{liste} sera affiché tel quel : la chaîne n'est pas une f-string."
+                yield cellule, noeud, f"{liste} sera affiché tel quel, car la chaîne n'est pas une f-string."
 
 
 SECRETS = re.compile(r"\b(sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|"
@@ -281,10 +254,9 @@ FACTICE = re.compile(r"(?i)(<|>|xxx|\.\.\.|changeme|votre|your|exemple|example|p
 
 
 @regle("AG005", "secret-en-clair", "erreur",
-       "Une clé d'API, un jeton ou un mot de passe écrit dans le code.",
-       "Le code d'un notebook part avec lui : dans git, dans un export HTML ou WASM, dans le contexte envoyé à "
-       "l'assistant d'IA.",
-       "Lis-le dans l'environnement (`os.environ[\"NOM\"]`), ou demande-le par `mo.ui.text(kind=\"password\")`.")
+       "Écrire une clé d'API, un jeton ou un mot de passe dans le code.",
+       "Le code d'un notebook voyage avec lui, dans git, dans un export HTML ou WASM et dans le contexte envoyé à l'assistant.",
+       "Lis la valeur dans l'environnement par `os.environ[\"NOM\"]`, ou demande-la par `mo.ui.text(kind=\"password\")`.")
 def _secret(carnet: Carnet, ctx: Contexte):
     for cellule in carnet.cellules:
         for noeud in tous(cellule.instructions):
@@ -306,7 +278,7 @@ def _secret(carnet: Carnet, ctx: Contexte):
 
 @regle("AG006", "code-mode-dans-cellule", "erreur",
        "Importer `marimo._code_mode` dans une cellule.",
-       "C'est une API privée réservée au bloc-notes temporaire de marimo pair ; elle change sans préavis.",
+       "C'est une API privée, réservée au bloc-notes temporaire de marimo pair. Elle change sans préavis.",
        "Garde `import marimo._code_mode as cm` dans `marimo pair execute`, jamais dans le notebook.")
 def _code_mode(carnet: Carnet, ctx: Contexte):
     for cellule in carnet.cellules:
@@ -319,7 +291,7 @@ def _code_mode(carnet: Carnet, ctx: Contexte):
 
 
 @regle("AG007", "nom-indefini", "erreur",
-       "Lire un nom qu'aucune cellule ne définit, ou un nom privé (`_x`) défini dans une autre cellule.",
+       "Lire un nom qu'aucune cellule ne définit, ou un nom privé comme `_x` défini dans une autre cellule.",
        "La cellule lèvera `NameError`. Un nom qui commence par `_` reste local à sa cellule.",
        "Définis le nom dans une cellule, corrige la faute de frappe, ou retire le `_` du nom partagé.")
 def _nom_indefini(carnet: Carnet, ctx: Contexte):
@@ -330,7 +302,7 @@ def _nom_indefini(carnet: Carnet, ctx: Contexte):
         if cellule.erreur_syntaxe:
             continue
         for nom in sorted(cellule.lectures):
-            if nom in BUILTINS or nom in ("display", "get_ipython"):  # AG003 s'en charge
+            if nom in BUILTINS or nom in NOMS_JUPYTER:
                 continue
             noeud = next((n for n in tous(cellule.instructions) if isinstance(n, ast.Name) and n.id == nom), None)
             if nom not in definis:
@@ -338,17 +310,17 @@ def _nom_indefini(carnet: Carnet, ctx: Contexte):
             elif nom.startswith("_") and nom != "_":
                 proprietaire = carnet.proprietaire(nom)
                 ou = proprietaire.etiquette if proprietaire else "une autre cellule"
-                yield cellule, noeud, f"`{nom}` est privé à la {ou} : il n'existe pas ici."
+                yield cellule, noeud, f"`{nom}` est privé à la {ou}. Il n'existe pas ici."
 
 
 @regle("AG008", "corps-au-format-fichier", "erreur",
-       "Un corps de cellule envoyé à code mode contient `return`, `@app.cell` ou `app = marimo.App`.",
+       "Envoyer à code mode un corps de cellule qui contient `return`, `@app.cell` ou `app = marimo.App`.",
        "`create_cell` et `edit_cell` prennent le contenu de la cellule, pas l'enveloppe du fichier.",
-       "Envoie seulement les instructions de la cellule ; marimo calcule les entrées et les sorties.",
+       "Envoie seulement les instructions de la cellule. marimo calcule ses entrées et ses sorties.",
        modes=("corps",))
 def _corps_format_fichier(carnet: Carnet, ctx: Contexte):
     for cellule in carnet.cellules:
-        if cellule.retour_final:
+        if cellule.retour_au_premier_niveau:
             noeud = next((n for n in cellule.instructions if isinstance(n, ast.Return)), None)
             yield cellule, noeud, "`return` au premier niveau d'un corps de cellule."
         if "@app.cell" in cellule.code or "marimo.App(" in cellule.code:
@@ -356,9 +328,9 @@ def _corps_format_fichier(carnet: Carnet, ctx: Contexte):
 
 
 @regle("AG009", "nom-redefini", "erreur",
-       "Un nom public défini par deux cellules.",
-       "marimo refuse le notebook (`Multiply-defined names`) ; en code mode, tout le lot de modifications est rejeté.",
-       "Modifie la cellule propriétaire, ou donne un nouveau nom au résultat (`propre = df.dropna()`).",
+       "Définir un même nom public dans deux cellules.",
+       "marimo refuse le notebook avec `Multiply-defined names`. En code mode, il rejette tout le lot de modifications.",
+       "Modifie la cellule propriétaire, ou donne un nouveau nom au résultat, par exemple `propre = df.dropna()`.",
        modes=("corps",))
 def _redefini(carnet: Carnet, ctx: Contexte):
     vus: dict[str, Cellule] = {}
@@ -372,17 +344,13 @@ def _redefini(carnet: Carnet, ctx: Contexte):
                 vus[nom] = cellule
 
 
-# ---------------------------------------------------------------- avertissements
-
 @regle("AG101", "mutation-inter-cellules", "avertissement",
-       "Modifier en place un objet défini dans une autre cellule (`df[\"c\"] = …`, `liste.append`, `inplace=True`).",
-       "marimo suit les noms, pas les mutations : les cellules qui lisent l'objet ne sont pas relancées, et relancer "
-       "cette cellule applique la mutation une seconde fois.",
-       "Crée un nouvel objet (`df2 = df.assign(c=…)`, `df.with_columns(…)`, `liste2 = [*liste, x]`) ou fais la "
-       "modification dans la cellule qui définit l'objet.")
+       "Modifier en place un objet défini dans une autre cellule, par exemple par `df[\"c\"] = ...`, `liste.append` ou `inplace=True`.",
+       "marimo suit les noms, pas les mutations. Les cellules qui lisent l'objet ne repartent pas. Relancer cette cellule applique la mutation une seconde fois.",
+       "Crée un nouvel objet, par exemple `df2 = df.assign(c=...)`, `df.with_columns(...)` ou `liste2 = [*liste, x]`. Sinon, fais la modification dans la cellule qui définit l'objet.")
 def _mutation(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
-        etrangers = {n for n in cellule.lectures if n not in BUILTINS and n not in ctx.resolution and n not in ctx.ui}
+        etrangers = {n for n in cellule.lectures if n not in BUILTINS and n not in ctx.resolution and n not in ctx.genres_ui}
         finale = cellule.instructions[-1] if cellule.instructions else None
         for noeud in premier_niveau(cellule.instructions):
             cibles: list[ast.AST] = []
@@ -409,32 +377,28 @@ def _mutation(carnet: Carnet, ctx: Contexte):
                 appel = ast.unparse(noeud.func)
                 appel = appel if len(appel) <= 40 else appel[:37] + "…"
                 if ambigu and not en_place:
-                    yield cellule, noeud, (f"`{appel}(…)` : sur une liste, il modifie en place un objet d'une autre "
-                                           "cellule ; sur un DataFrame, son résultat est perdu.")
+                    yield cellule, noeud, (f"Sur une liste, `{appel}(...)` modifie en place un objet d'une autre "
+                                           "cellule. Sur un DataFrame, son résultat est perdu.")
                 elif en_place or (noeud.func.attr in MUTANTES and seule):
-                    yield cellule, noeud, f"`{appel}(…)` modifie en place un objet d'une autre cellule (`{racine.id}`)."
+                    yield cellule, noeud, f"`{appel}(...)` modifie en place `{racine.id}`, un objet d'une autre cellule."
 
 
 @regle("AG102", "ui-non-liee", "avertissement",
-       "Un élément d'interface qui n'est pas affecté à un nom public (dans une liste, dans `mo.hstack`, ou `_nom`).",
-       "marimo ne relance les cellules qu'à partir d'un élément lié à une variable globale : toucher ce curseur ne "
-       "fera rien, et sa valeur n'est lisible nulle part.",
-       "Affecte-le à un nom public (`seuil = mo.ui.slider(…)`) dans sa propre instruction ; pour une liste ou un "
-       "dictionnaire d'éléments, utilise `mo.ui.array([...])` ou `mo.ui.dictionary({...})`.")
+       "Créer un élément d'interface sans l'affecter à un nom public, par exemple dans une liste, dans `mo.hstack` ou sous un nom `_nom`.",
+       "marimo ne relance les cellules qu'à partir d'un élément lié à une variable globale. Toucher ce curseur ne fera rien, et sa valeur n'est lisible nulle part.",
+       "Affecte l'élément à un nom public dans sa propre instruction, par exemple `seuil = mo.ui.slider(...)`. Pour une liste ou un dictionnaire d'éléments, utilise `mo.ui.array([...])` ou `mo.ui.dictionary({...})`.")
 def _ui_non_liee(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in premier_niveau(cellule.instructions):
             genre = ctx.genre_ui(noeud) if isinstance(noeud, ast.Call) else ""
             if not genre or genre in UI_AFFICHAGE or genre in ("form", "batch"):
                 continue
-            # On remonte jusqu'à l'instruction ; une enveloppe (`mo.ui.array`, `.form()`, `.batch()`) absorbe
-            # l'élément : c'est elle qui doit être liée à un nom public.
             courant, haut, en_liste, dans_appel = noeud, ctx.parent(noeud), False, False
             while haut is not None and not isinstance(haut, ast.stmt):
                 if isinstance(haut, ast.Call) and ctx.genre_ui(haut) in UI_ENVELOPPES | {"form", "batch"}:
                     courant = haut
                 elif isinstance(haut, ast.IfExp) and courant in (haut.body, haut.orelse):
-                    courant = haut  # `a = mo.ui.slider(…) if x else mo.ui.number(…)`
+                    courant = haut  # `a = mo.ui.slider(...) if x else mo.ui.number(...)`
                 elif isinstance(haut, ast.Call):
                     dans_appel = True
                 elif isinstance(haut, (ast.List, ast.ListComp, ast.Dict, ast.DictComp, ast.Tuple, ast.SetComp)) and courant is noeud:
@@ -444,15 +408,14 @@ def _ui_non_liee(carnet: Carnet, ctx: Contexte):
             if cible is True:
                 continue
             if isinstance(cible, str):
-                yield cellule, noeud, f"`mo.ui.{genre}` est lié à `{cible}`, un nom privé : ses changements ne relancent rien."
+                yield cellule, noeud, f"`mo.ui.{genre}` est lié à `{cible}`, un nom privé. Ses changements ne relancent rien."
             elif en_liste and not dans_appel:
-                yield cellule, noeud, f"`mo.ui.{genre}(…)` est rangé dans une liste ou un dictionnaire ordinaire : utilise `mo.ui.array` ou `mo.ui.dictionary`."
+                yield cellule, noeud, f"`mo.ui.{genre}(...)` est rangé dans une liste ou un dictionnaire ordinaire. Utilise `mo.ui.array` ou `mo.ui.dictionary`."
             else:
-                yield cellule, noeud, f"`mo.ui.{genre}(…)` n'est affecté à aucun nom public : il ne déclenchera rien."
+                yield cellule, noeud, f"`mo.ui.{genre}(...)` n'est affecté à aucun nom public. Il ne déclenchera rien."
 
 
 def _cible_publique(instruction: ast.AST, valeur: ast.AST) -> bool | str:
-    """True si `valeur` est affectée à un nom public ; le nom s'il est privé ; False sinon."""
     if isinstance(instruction, ast.AnnAssign) and instruction.value is not None:
         cible = instruction.target
     elif isinstance(instruction, ast.Assign) and len(instruction.targets) == 1:
@@ -470,9 +433,8 @@ def _cible_publique(instruction: ast.AST, valeur: ast.AST) -> bool | str:
 
 @regle("AG103", "bouton-sans-action", "avertissement",
        "Lire `.value` d'un `mo.ui.button` créé sans `on_click`.",
-       "La valeur d'un `mo.ui.button` sans `on_click` reste `None` : `if bouton.value:` n'est jamais vrai.",
-       "Pour lancer un calcul : `lancer = mo.ui.run_button(label=\"…\")`, puis `mo.stop(not lancer.value)` dans la "
-       "cellule du calcul. Pour compter des clics : `on_click=lambda n: n + 1, value=0`.")
+       "La valeur d'un `mo.ui.button` sans `on_click` reste `None`, donc `if bouton.value:` n'est jamais vrai.",
+       "Pour lancer un calcul, crée `lancer = mo.ui.run_button(label=\"...\")`, puis écris `mo.stop(not lancer.value)` dans la cellule du calcul. Pour compter des clics, passe `on_click=lambda n: n + 1, value=0`.")
 def _bouton(carnet: Carnet, ctx: Contexte):
     lus = set()
     for cellule in carnet.cellules:
@@ -486,15 +448,13 @@ def _bouton(carnet: Carnet, ctx: Contexte):
                 if ctx.genre_ui(appel) == "button" and not any(m.arg in ("on_click", "on_change") for m in appel.keywords):
                     for cible in instruction.targets:
                         if isinstance(cible, ast.Name) and cible.id in lus:
-                            yield cellule, instruction, f"`{cible.id}` est un `mo.ui.button` sans `on_click` : `{cible.id}.value` vaut toujours `None`."
+                            yield cellule, instruction, f"`{cible.id}` est un `mo.ui.button` sans `on_click`, donc `{cible.id}.value` vaut toujours `None`."
 
 
 @regle("AG104", "garde-if-valeur", "avertissement",
-       "Un `if element.value:` qui définit un nom lu par d'autres cellules, sans `else`.",
-       "Quand la condition est fausse, le nom n'existe pas : les cellules qui le lisent affichent une erreur "
-       "(`Name … is not defined`) au lieu d'attendre.",
-       "En tête de cellule : `mo.stop(not lancer.value, mo.md(\"Clique sur **Lancer** pour calculer.\"))`, puis le "
-       "calcul sans `if`.")
+       "Écrire un `if element.value:` qui définit sans `else` un nom que d'autres cellules lisent.",
+       "Quand la condition est fausse, le nom n'existe pas. Les cellules qui le lisent affichent alors `Name ... is not defined` au lieu d'attendre.",
+       "Écris en tête de cellule `mo.stop(not lancer.value, mo.md(\"Clique sur **Lancer** pour calculer.\"))`, puis le calcul sans `if`.")
 def _garde_if(carnet: Carnet, ctx: Contexte):
     from .carnet import definitions_de
 
@@ -514,20 +474,20 @@ def _garde_if(carnet: Carnet, ctx: Contexte):
 
 
 @regle("AG105", "sortie-perdue", "avertissement",
-       "Une expression d'affichage (`mo.md(…)`, `df`, `df.head()`) qui n'est pas la dernière de la cellule.",
-       "marimo n'affiche que la dernière expression : celle-ci ne sera jamais vue.",
-       "Mets-la en dernier, regroupe plusieurs sorties avec `mo.vstack([...])`, ou utilise `mo.output.append(…)`.")
+       "Écrire une expression d'affichage, comme `mo.md(...)`, `df` ou `df.head()`, ailleurs qu'en dernière position dans la cellule.",
+       "marimo n'affiche que la dernière expression. Celle-ci ne sera jamais vue.",
+       "Mets-la en dernier, regroupe plusieurs sorties avec `mo.vstack([...])`, ou utilise `mo.output.append(...)`.")
 def _sortie_perdue(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for instruction in cellule.instructions[:-1]:
             if not isinstance(instruction, ast.Expr):
                 continue
             valeur = instruction.value
-            if isinstance(valeur, ast.Constant):  # docstring ou chaîne de commentaire
+            if isinstance(valeur, ast.Constant):
                 continue
             perdue = isinstance(valeur, (ast.Name, ast.Attribute, ast.Subscript))
             if isinstance(valeur, ast.Call):
-                nom = ctx.pointe(valeur.func)
+                nom = ctx.nom_pointe(valeur.func)
                 tete, _, reste = nom.partition(".")
                 perdue = (tete in ctx.mo and (reste in MO_AFFICHAGE or (reste.startswith("ui.") and reste.count(".") == 1))) \
                     or (isinstance(valeur.func, ast.Attribute) and valeur.func.attr in ("head", "tail", "describe")
@@ -535,27 +495,25 @@ def _sortie_perdue(carnet: Carnet, ctx: Contexte):
             if perdue:
                 extrait = ast.unparse(valeur)
                 extrait = extrait if len(extrait) <= 40 else extrait[:37] + "…"
-                yield cellule, instruction, f"`{extrait}` ne sera pas affiché : ce n'est pas la dernière expression."
+                yield cellule, instruction, f"`{extrait}` ne sera pas affiché, car ce n'est pas la dernière expression."
 
 
 @regle("AG106", "boucle-bloquante", "avertissement",
-       "Une boucle `while True` avec `sleep` dans une cellule.",
-       "Elle bloque le noyau : plus aucune cellule ni aucun élément d'interface ne répond.",
-       "Rafraîchis avec `mo.ui.refresh(default_interval=\"5s\")` lu dans une cellule, ou lance le travail dans "
-       "`mo.Thread`.")
+       "Écrire une boucle `while True` avec `sleep` dans une cellule.",
+       "La boucle bloque le noyau. Plus aucune cellule ni aucun élément d'interface ne répond.",
+       "Lis un `mo.ui.refresh(default_interval=\"5s\")` dans une cellule, ou lance le travail dans un `mo.Thread`.")
 def _boucle(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in premier_niveau(cellule.instructions):
             infinie = isinstance(noeud, ast.While) and isinstance(noeud.test, ast.Constant) and noeud.test.value
-            if infinie and any(isinstance(n, ast.Call) and ctx.pointe(n.func).endswith("sleep") for n in ast.walk(noeud)):
+            if infinie and any(isinstance(n, ast.Call) and ctx.nom_pointe(n.func).endswith("sleep") for n in ast.walk(noeud)):
                 yield cellule, noeud, "`while True` avec `sleep` bloque le noyau."
 
 
 @regle("AG107", "global", "avertissement",
-       "L'instruction `global` dans une cellule.",
-       "Les variables d'une cellule sont déjà globales pour marimo ; `global` contourne le graphe et cache une "
-       "dépendance.",
-       "Retourne la nouvelle valeur sous un nouveau nom, ou passe par la cellule qui définit la variable.")
+       "Utiliser l'instruction `global` dans une cellule.",
+       "Les variables d'une cellule sont déjà globales pour marimo. `global` contourne le graphe et cache une dépendance.",
+       "Retourne la nouvelle valeur sous un nouveau nom, ou modifie la cellule qui définit la variable.")
 def _global(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in tous(cellule.instructions):
@@ -564,35 +522,33 @@ def _global(carnet: Carnet, ctx: Contexte):
 
 
 @regle("AG108", "travail-lourd-sur-ui", "avertissement",
-       "Un calcul lourd (`fit`, `pm.sample`, requête réseau) dans une cellule qui lit un curseur ou un champ.",
-       "Chaque mouvement du curseur relance tout le calcul : l'interface rame et l'utilisateur attend.",
-       "Sépare le calcul lourd en amont, ou déclenche-le par `mo.ui.run_button` (avec `mo.stop`) ou un formulaire "
-       "(`mo.ui.slider(…).form()`) ; `@mo.cache` évite de refaire un calcul déjà fait.")
+       "Lancer un calcul lourd, comme `fit`, `pm.sample` ou une requête réseau, dans une cellule qui lit un curseur ou un champ.",
+       "Chaque mouvement du curseur relance tout le calcul. L'interface rame et l'utilisateur attend.",
+       "Place le calcul lourd en amont, ou déclenche-le par un `mo.ui.run_button` avec `mo.stop`, ou par un formulaire comme `mo.ui.slider(...).form()`. `@mo.cache` évite de refaire un calcul déjà fait.")
 def _lourd(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         lit = sorted({n.value.id for n in premier_niveau(cellule.instructions)
                       if isinstance(n, ast.Attribute) and n.attr == "value" and isinstance(n.value, ast.Name)
-                      and ctx.ui.get(n.value.id) in UI_CONTINUS})
+                      and ctx.genres_ui.get(n.value.id) in UI_CONTINUS})
         if not lit:
             continue
         for noeud in premier_niveau(cellule.instructions):
             if not isinstance(noeud, ast.Call):
                 continue
-            nom = ctx.module_de(ctx.pointe(noeud.func))
+            nom = ctx.nom_complet(ctx.nom_pointe(noeud.func))
             dernier = nom.rsplit(".", 1)[-1] if nom else (noeud.func.attr if isinstance(noeud.func, ast.Attribute) else "")
             racine = nom.split(".", 1)[0]
             lourd = dernier in LOURDS or (dernier == "sample" and racine in MODULES_BAYES) or \
                 (racine in ("requests", "httpx") and dernier in ("get", "post", "request"))
             if lourd:
-                yield cellule, noeud, f"`{ctx.pointe(noeud.func) or dernier}(…)` est relancé à chaque changement de `{lit[0]}`."
+                yield cellule, noeud, f"`{ctx.nom_pointe(noeud.func) or dernier}(...)` est relancé à chaque changement de `{lit[0]}`."
                 break
 
 
 @regle("AG109", "except-large", "conseil",
-       "`except Exception:` ou `except:` qui avale l'erreur.",
-       "marimo affiche une erreur proprement sous la cellule et arrête les cellules qui en dépendent ; une erreur "
-       "avalée donne un résultat faux sans signe.",
-       "Laisse l'erreur remonter, ou n'attrape que l'exception attendue (`except FileNotFoundError:`).")
+       "Écrire `except Exception:` ou `except:` qui avale l'erreur.",
+       "marimo affiche une erreur sous la cellule et arrête les cellules qui en dépendent. Une erreur avalée donne un résultat faux sans aucun signe.",
+       "Laisse l'erreur remonter, ou n'attrape que l'exception attendue, par exemple `except FileNotFoundError:`.")
 def _except(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in premier_niveau(cellule.instructions):
@@ -603,15 +559,15 @@ def _except(carnet: Carnet, ctx: Contexte):
 
 
 @regle("AG110", "arguments-de-ligne", "conseil",
-       "`sys.argv` ou `argparse` dans un notebook.",
+       "Utiliser `sys.argv` ou `argparse` dans un notebook.",
        "Dans l'éditeur, `sys.argv` contient les arguments de marimo, pas ceux du notebook.",
-       "Lis les arguments avec `mo.cli_args()` (`python notebook.py -- --n 10`).")
+       "Lis les arguments avec `mo.cli_args()`, puis lance `python notebook.py -- --n 10`.")
 def _argv(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in tous(cellule.instructions):
-            nom = ctx.module_de(ctx.pointe(noeud)) if isinstance(noeud, ast.Attribute) else ""
-            if nom == "sys.argv" or (isinstance(noeud, ast.Call) and ctx.module_de(ctx.pointe(noeud.func)) == "argparse.ArgumentParser"):
-                yield cellule, noeud, f"`{ctx.pointe(noeud if isinstance(noeud, ast.Attribute) else noeud.func)}`."
+            nom = ctx.nom_complet(ctx.nom_pointe(noeud)) if isinstance(noeud, ast.Attribute) else ""
+            if nom == "sys.argv" or (isinstance(noeud, ast.Call) and ctx.nom_complet(ctx.nom_pointe(noeud.func)) == "argparse.ArgumentParser"):
+                yield cellule, noeud, f"`{ctx.nom_pointe(noeud if isinstance(noeud, ast.Attribute) else noeud.func)}`."
 
 
 IMPORT_VERS_PAQUET = {
@@ -651,11 +607,9 @@ def dependances_declarees(entete: str) -> set[str] | None:
 
 
 @regle("AG111", "dependance-non-declaree", "avertissement",
-       "Un module importé qui manque à l'en-tête PEP 723 du notebook.",
-       "`marimo edit --sandbox` et `uv run notebook.py` installent l'en-tête, pas plus : l'import échouera chez "
-       "quiconque ouvre le notebook.",
-       "Ajoute le paquet à `dependencies` dans l'en-tête `# /// script`, ou, dans une session marimo pair, "
-       "`ctx.packages.add(\"paquet\")`.",
+       "Importer un module qui manque à l'en-tête PEP 723 du notebook.",
+       "`marimo edit --sandbox` et `uv run notebook.py` n'installent que l'en-tête. L'import échouera chez toute personne qui ouvre le notebook.",
+       "Ajoute le paquet à `dependencies` dans l'en-tête `# /// script`. Dans une session marimo pair, utilise `ctx.packages.add(\"paquet\")`.",
        modes=("fichier",))
 def _dependances(carnet: Carnet, ctx: Contexte):
     if not carnet.entete:
@@ -685,23 +639,21 @@ def _dependances(carnet: Carnet, ctx: Contexte):
                     yield cellule, noeud, f"`{tete}` est importé mais `{paquet}` n'est pas dans l'en-tête PEP 723."
 
 
-# ---------------------------------------------------------------- conseils
-
 @regle("AG201", "plt-show", "conseil",
-       "`plt.show()` pour afficher une figure matplotlib.",
+       "Afficher une figure matplotlib par `plt.show()`.",
        "Dans marimo, la figure doit être la sortie de la cellule pour apparaître dans une app et dans un export.",
-       "Termine la cellule par `plt.gca()` ou par la figure (`fig`).")
+       "Termine la cellule par `plt.gca()` ou par la figure, par exemple `fig`.")
 def _plt_show(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in tous(cellule.instructions):
-            if isinstance(noeud, ast.Call) and ctx.module_de(ctx.pointe(noeud.func)) == "matplotlib.pyplot.show":
+            if isinstance(noeud, ast.Call) and ctx.nom_complet(ctx.nom_pointe(noeud.func)) == "matplotlib.pyplot.show":
                 yield cellule, noeud, "`plt.show()`."
 
 
 @regle("AG202", "print-comme-sortie", "conseil",
-       "Une cellule qui ne montre son résultat que par `print(f\"…\")`.",
-       "`print` écrit dans la console, sous la cellule ; la sortie de la cellule, celle que montre une app, reste vide.",
-       "Termine par `mo.md(f\"…\")` pour un texte, ou par l'objet lui-même.")
+       "Montrer le résultat d'une cellule seulement par `print(f\"...\")`.",
+       "`print` écrit dans la console, sous la cellule. La sortie de la cellule, celle qu'une app montre, reste vide.",
+       "Termine par `mo.md(f\"...\")` pour un texte, ou par l'objet lui-même.")
 def _print(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         if not cellule.instructions:
@@ -719,27 +671,26 @@ LIENS = re.compile(r"\[[^\]]*\]\([^)]*\)|https?://\S+|<[^>]+>")
 
 
 @regle("AG203", "valeur-recopiee", "conseil",
-       "Un nombre décimal ou un pourcentage écrit en dur dans un texte `mo.md` sans interpolation.",
-       "Si ce nombre vient d'un calcul, le texte mentira dès que les données changent.",
-       "Interpole la valeur : `mo.md(f\"La moyenne vaut {moyenne:.2f}\")`.")
+       "Écrire en dur un nombre décimal ou un pourcentage dans un texte `mo.md` sans interpolation.",
+       "Si ce nombre vient d'un calcul, le texte sera faux dès que les données changent.",
+       "Interpole la valeur, par exemple `mo.md(f\"La moyenne vaut {moyenne:.2f}\")`.")
 def _valeur_recopiee(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in tous(cellule.instructions):
-            if not (isinstance(noeud, ast.Call) and ctx.est_mo(ctx.pointe(noeud.func), "md") and noeud.args):
+            if not (isinstance(noeud, ast.Call) and ctx.est_mo(ctx.nom_pointe(noeud.func), "md") and noeud.args):
                 continue
             argument = noeud.args[0]
             if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
-                texte = LIENS.sub(" ", texte_hors_maths(argument.value))
+                texte = LIENS.sub(" ", masquer_maths_et_code(argument.value))
                 trouves = [m.group(1) for m in NOMBRE_RECOPIE.finditer(texte)
                            if not RENVOI.search(texte[max(0, m.start() - 14):m.start()])]
                 if trouves:
-                    yield cellule, noeud, f"« {trouves[0].strip()} » est écrit en dur : vient-il d'un calcul ?"
+                    yield cellule, noeud, f"\"{trouves[0].strip()}\" est écrit en dur. Ce nombre vient-il d'un calcul ?"
 
 
 @regle("AG204", "trop-de-prives", "conseil",
-       "Cinq noms privés (`_x`) ou plus dans une même cellule.",
-       "Beaucoup de `_` cachent une étape utile ou une cellule qui fait trop de choses ; les agents en abusent pour "
-       "contourner la règle d'un seul propriétaire par nom.",
+       "Définir cinq noms privés `_x` ou plus dans une même cellule.",
+       "Beaucoup de `_` cachent une étape utile ou une cellule qui fait trop de choses. Les agents en abusent pour contourner la règle d'un seul propriétaire par nom.",
        "Donne un nom public aux résultats utiles, ou range le calcul dans une fonction.")
 def _prives(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
@@ -749,10 +700,9 @@ def _prives(carnet: Carnet, ctx: Contexte):
 
 
 @regle("AG205", "sans-entete-pep723", "conseil",
-       "Pas d'en-tête PEP 723 (`# /// script`) en tête du notebook.",
+       "Omettre l'en-tête PEP 723 `# /// script` en tête du notebook.",
        "Sans lui, `uvx marimo edit --sandbox notebook.py` ne sait pas quoi installer.",
-       "Ajoute l'en-tête avec `requires-python` et `dependencies` (marimo compris) ; `marimo edit --sandbox` le tient "
-       "à jour ensuite.",
+       "Ajoute l'en-tête avec `requires-python` et `dependencies`, marimo compris. `marimo edit --sandbox` le tient à jour ensuite.",
        modes=("fichier",))
 def _entete(carnet: Carnet, ctx: Contexte):
     if carnet.entete is None and carnet.cellules:
@@ -760,22 +710,20 @@ def _entete(carnet: Carnet, ctx: Contexte):
 
 
 @regle("AG206", "imports-disperses", "conseil",
-       "Des imports répartis dans trois cellules ou plus.",
-       "Le lecteur cherche d'où vient un nom ; deux cellules qui importent le même module sous le même nom font "
-       "échouer le notebook.",
-       "Regroupe les imports dans la première cellule, ou dans `with app.setup:` (cellule `setup`, sans dépendance).")
+       "Répartir les imports dans trois cellules ou plus.",
+       "Le lecteur cherche d'où vient un nom. Deux cellules qui importent le même module sous le même nom font échouer le notebook.",
+       "Regroupe les imports dans la première cellule, ou dans `with app.setup:`. Cette cellule `setup` ne dépend d'aucune autre.")
 def _imports(carnet: Carnet, ctx: Contexte):
     avec = [c for c in cellules_de_code(carnet) if c.genre == "cell" and c.index > 0
             and any(isinstance(i, (ast.Import, ast.ImportFrom)) for i in c.instructions)]
     if len(avec) >= 3:
-        yield avec[0], None, f"Imports dans {len(avec)} cellules : " + ", ".join(c.etiquette for c in avec[:4]) + "."
+        yield avec[0], None, f"Imports dans {len(avec)} cellules, dont " + ", ".join(c.etiquette for c in avec[:4]) + "."
 
 
 @regle("AG207", "cellule-longue", "conseil",
-       "Une cellule de plus de 60 lignes de code (chaînes longues non comptées).",
-       "Une cellule est une frontière de recalcul : une longue cellule refait tout pour le moindre changement, et "
-       "se lit mal.",
-       "Coupe en amont le calcul coûteux et réutilisable, en aval la présentation.")
+       "Écrire une cellule de plus de 60 lignes de code, sans compter les longues chaînes.",
+       "Une cellule est une frontière de recalcul. Une longue cellule refait tout pour le moindre changement, et se lit mal.",
+       "Place en amont le calcul coûteux et réutilisable, et en aval la présentation.")
 def _longue(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         if not cellule.instructions:
@@ -794,38 +742,36 @@ CHEMIN_ABSOLU = re.compile(r"^(/home/|/Users/|/tmp/|/mnt/|/var/|/opt/|[A-Za-z]:[
 
 
 @regle("AG208", "chemin-absolu", "conseil",
-       "Un chemin absolu propre à une machine (`/home/…`, `C:\\…`, `/tmp/…`).",
+       "Écrire un chemin absolu propre à une machine, comme `/home/...`, `C:\\...` ou `/tmp/...`.",
        "Le notebook ne tournera pas ailleurs, ni dans un bac à sable, ni chez un collègue.",
-       "Pars du dossier du notebook : `mo.notebook_dir() / \"donnees\" / \"fichier.csv\"`.")
+       "Pars du dossier du notebook, par exemple `mo.notebook_dir() / \"donnees\" / \"fichier.csv\"`.")
 def _chemin(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in tous(cellule.instructions):
             if isinstance(noeud, ast.Constant) and isinstance(noeud.value, str) and CHEMIN_ABSOLU.match(noeud.value) \
                     and "\n" not in noeud.value and len(noeud.value) < 200:
-                yield cellule, noeud, f"« {noeud.value[:50]} »."
+                yield cellule, noeud, f"Le chemin \"{noeud.value[:50]}\" ne marche que sur cette machine."
 
 
 @regle("AG209", "mo-state-sans-rappel", "conseil",
-       "`mo.state` sans aucun `on_change` dans le notebook.",
-       "Pour 99 % des cas, les variables et les éléments d'interface suffisent ; `mo.state` ajoute des mises à jour "
-       "difficiles à suivre.",
-       "Garde une variable ordinaire et un élément d'interface ; réserve `mo.state` aux rappels `on_change` ou à un "
-       "état accumulé.")
+       "Utiliser `mo.state` sans aucun `on_change` dans le notebook.",
+       "Le plus souvent, des variables et des éléments d'interface suffisent. `mo.state` ajoute des mises à jour difficiles à suivre.",
+       "Garde une variable ordinaire et un élément d'interface. Réserve `mo.state` aux rappels `on_change` ou à un état accumulé.")
 def _state(carnet: Carnet, ctx: Contexte):
     rappels = any(isinstance(n, ast.keyword) and n.arg == "on_change" for c in carnet.cellules for n in tous(c.instructions))
     if rappels:
         return
     for cellule in cellules_de_code(carnet):
         for noeud in tous(cellule.instructions):
-            if isinstance(noeud, ast.Call) and ctx.est_mo(ctx.pointe(noeud.func), "state"):
-                yield cellule, noeud, "`mo.state(…)` sans `on_change`."
+            if isinstance(noeud, ast.Call) and ctx.est_mo(ctx.nom_pointe(noeud.func), "state"):
+                yield cellule, noeud, "`mo.state(...)` sans `on_change`."
                 return
 
 
 @regle("AG210", "ui-sans-etiquette", "conseil",
-       "Un curseur, un champ ou un bouton sans `label`.",
+       "Créer un curseur, un champ ou un bouton sans `label`.",
        "Le lecteur voit un curseur sans savoir ce qu'il règle.",
-       "Ajoute `label=\"…\"` (le Markdown est permis), ou compose le texte avec `mo.md(\"… {x}\").batch(x=…)`.")
+       "Ajoute `label=\"...\"`, qui accepte le Markdown. Sinon, compose le texte avec `mo.md(\"... {x}\").batch(x=...)`.")
 def _etiquette(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):
         for noeud in premier_niveau(cellule.instructions):
@@ -839,10 +785,8 @@ def _etiquette(carnet: Carnet, ctx: Contexte):
                     dans_enveloppe = True
                 haut = ctx.parent(haut)
             if not dans_enveloppe:
-                yield cellule, noeud, f"`mo.ui.{genre}(…)` sans `label`."
+                yield cellule, noeud, f"`mo.ui.{genre}(...)` sans `label`."
 
-
-# ---------------------------------------------------------------- moteur
 
 def appliquer(carnet: Carnet, selection: set[str] | None = None, ignorer: set[str] | None = None) -> list[Diagnostic]:
     ctx = Contexte(carnet)
@@ -865,7 +809,7 @@ def appliquer(carnet: Carnet, selection: set[str] | None = None, ignorer: set[st
     for cellule in carnet.cellules:
         if cellule.erreur_syntaxe:
             resultat.append(Diagnostic(code="AG000", nom="syntaxe", gravite="erreur",
-                                       message=f"Le code ne se lit pas : {cellule.erreur_syntaxe}.",
+                                       message=f"Le code ne se lit pas. {cellule.erreur_syntaxe}.",
                                        correction="Corrige la syntaxe avant tout le reste.", cellule=cellule.index,
                                        etiquette=cellule.etiquette, ligne=cellule.ligne))
     ordre = {g: i for i, g in enumerate(GRAVITES)}

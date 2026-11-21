@@ -1,24 +1,12 @@
-"""Lire un notebook marimo, ou des corps de cellules, sans importer marimo.
-
-Deux entrées :
-
-- `lire_fichier(chemin)` : le format fichier (`@app.cell`, `@app.function`,
-  `@app.class_definition`, `with app.setup:`), tel que marimo l'écrit ;
-- `lire_corps(codes)` : des corps de cellules, tels que `ctx.cells[...].code` les donne en
-  code mode, ou tels qu'un assistant s'apprête à les insérer.
-
-Pour chaque cellule on calcule ce qu'elle définit et ce qu'elle lit. Le calcul passe par
-`symtable`, appliqué au corps enveloppé dans une fonction asynchrone : un `await` de premier
-niveau, permis dans une cellule, reste ainsi analysable.
-"""
-
 from __future__ import annotations
 
 import ast
 import re
 import symtable
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 ENTETE_PEP723 = re.compile(r"(?m)^# /// script\s*$(?P<corps>(?:\n#.*)*?)\n# ///\s*$")
 
@@ -26,23 +14,22 @@ ENTETE_PEP723 = re.compile(r"(?m)^# /// script\s*$(?P<corps>(?:\n#.*)*?)\n# ///\
 @dataclass
 class Cellule:
     index: int
-    genre: str  # "cell", "function", "class", "setup"
+    genre: Literal["cell", "function", "class", "setup"]
     instructions: list[ast.stmt]
     code: str
     nom: str | None = None
-    ligne: int = 1  # ligne de la cellule dans le fichier (ou 1 pour un corps)
-    decalage: int = 0  # à ajouter aux numéros de ligne des nœuds pour retrouver le fichier
+    ligne: int = 1
     hide_code: bool = False
     definitions: set[str] = field(default_factory=set)
     lectures: set[str] = field(default_factory=set)
-    imports: dict[str, str] = field(default_factory=dict)  # nom lié -> module importé
-    retour_final: bool = False  # un `return` de premier niveau dans un corps (mode corps)
+    imports: dict[str, str] = field(default_factory=dict)
+    retour_au_premier_niveau: bool = False
     erreur_syntaxe: str | None = None
 
     @property
     def etiquette(self) -> str:
         if self.nom and self.nom != "_":
-            return f"cellule {self.index + 1} « {self.nom} »"
+            return f'cellule {self.index + 1} "{self.nom}"'
         return f"cellule {self.index + 1}"
 
 
@@ -51,9 +38,9 @@ class Carnet:
     cellules: list[Cellule]
     chemin: Path | None = None
     source: str = ""
-    entete: str | None = None  # contenu du bloc PEP 723, sans les dièses
-    mode: str = "fichier"  # "fichier" ou "corps"
-    complet: bool = True  # False : des cellules du notebook manquent, un nom inconnu peut y être défini
+    entete: str | None = None
+    mode: Literal["fichier", "corps"] = "fichier"
+    complet: bool = True
 
     def proprietaire(self, nom: str) -> Cellule | None:
         for cellule in self.cellules:
@@ -84,9 +71,7 @@ PORTEES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda,
 
 
 def definitions_de(instructions: list[ast.stmt]) -> set[str]:
-    """Les noms liés au premier niveau d'une cellule, sans entrer dans les fonctions ni les compréhensions.
-
-    `symtable` ne suffit pas ici : depuis Python 3.12, les variables d'une compréhension
+    """`symtable` ne suffit pas ici : depuis Python 3.12, les variables d'une compréhension
     apparaissent comme des locaux de la fonction qui la contient.
     """
     noms: set[str] = set()
@@ -113,8 +98,7 @@ def definitions_de(instructions: list[ast.stmt]) -> set[str]:
     return noms
 
 
-def _noms_lies(fonction_table: symtable.SymbolTable, definitions: set[str]) -> set[str]:
-    """Ce que le corps lit sans le définir (les globaux de l'enveloppe et de ses fonctions)."""
+def _lectures_globales(fonction_table: symtable.SymbolTable, definitions: set[str]) -> set[str]:
     lectures: set[str] = set()
 
     def parcourir(table: symtable.SymbolTable, locaux_parents: set[str]) -> None:
@@ -133,7 +117,6 @@ def _noms_lies(fonction_table: symtable.SymbolTable, definitions: set[str]) -> s
 
 
 def analyser(instructions: list[ast.stmt]) -> tuple[set[str], set[str], dict[str, str], str | None]:
-    """Définitions, lectures et imports d'un corps de cellule."""
     enveloppe = ast.parse("async def __cellule__():\n    pass\n")
     enveloppe.body[0].body = list(instructions) or [ast.Pass()]
     ast.fix_missing_locations(enveloppe)
@@ -143,7 +126,7 @@ def analyser(instructions: list[ast.stmt]) -> tuple[set[str], set[str], dict[str
         return set(), set(), {}, str(erreur)
     fonction = table.get_children()[0]
     definitions = definitions_de(instructions)
-    lectures = _noms_lies(fonction, definitions)
+    lectures = _lectures_globales(fonction, definitions)
     imports: dict[str, str] = {}
     for noeud in instructions:
         for sous in ast.walk(noeud):
@@ -159,7 +142,6 @@ def analyser(instructions: list[ast.stmt]) -> tuple[set[str], set[str], dict[str
 
 
 def _sans_app(noeud):
-    """La définition sans ses décorateurs `@app.…`, qui appartiennent au fichier et pas à la cellule."""
     import copy
 
     copie = copy.copy(noeud)
@@ -169,8 +151,6 @@ def _sans_app(noeud):
 
 
 def _segment(lignes: list[str], debut: int, fin: int) -> str:
-    import textwrap
-
     return textwrap.dedent("\n".join(lignes[debut - 1:fin]))
 
 
@@ -230,32 +210,15 @@ def est_notebook(source: str) -> bool:
 
 
 def lire_corps(codes: list[str], noms: list[str | None] | None = None, complet: bool = False) -> Carnet:
-    """Des corps de cellules (sans `@app.cell` ni `return`), dans l'ordre du notebook.
-
-    `complet=True` quand `codes` contient toutes les cellules du notebook : on peut alors dire
-    qu'un nom n'est défini nulle part.
-    """
     cellules = []
     for index, code in enumerate(codes):
         nom = noms[index] if noms and index < len(noms) else None
         try:
-            arbre = ast.parse(code, type_comments=False, feature_version=None)
-            erreur = None
+            arbre, erreur = ast.parse(textwrap.dedent(code)), None
         except SyntaxError as exc:
-            # un `await` de premier niveau est permis dans une cellule : on réessaie dans une fonction
-            try:
-                enveloppe = ast.parse("async def __c__():\n" + "\n".join("    " + ligne for ligne in code.splitlines()))
-                arbre = ast.Module(body=enveloppe.body[0].body, type_ignores=[])
-                erreur = None
-                for noeud in ast.walk(arbre):
-                    if hasattr(noeud, "lineno"):
-                        noeud.lineno -= 1
-                        if getattr(noeud, "end_lineno", None):
-                            noeud.end_lineno -= 1
-            except SyntaxError:
-                arbre, erreur = ast.Module(body=[], type_ignores=[]), f"{exc.msg} (ligne {exc.lineno})"
+            arbre, erreur = ast.Module(body=[], type_ignores=[]), f"{exc.msg} (ligne {exc.lineno})"
         cellule = Cellule(index=index, genre="cell", instructions=list(arbre.body), code=code, nom=nom)
-        cellule.retour_final = any(isinstance(n, ast.Return) for n in arbre.body)
+        cellule.retour_au_premier_niveau = any(isinstance(n, ast.Return) for n in arbre.body)
         cellule.definitions, cellule.lectures, cellule.imports, erreur_analyse = analyser(cellule.instructions)
         cellule.erreur_syntaxe = erreur or erreur_analyse
         cellules.append(cellule)
@@ -263,7 +226,6 @@ def lire_corps(codes: list[str], noms: list[str | None] | None = None, complet: 
 
 
 def joindre(carnet: Carnet, nouvelles: list[str]) -> Carnet:
-    """Le notebook suivi des cellules qu'un agent s'apprête à ajouter, analysé comme un tout."""
     proposees = lire_corps(nouvelles)
     depart = len(carnet.cellules)
     for decalage, cellule in enumerate(proposees.cellules):
