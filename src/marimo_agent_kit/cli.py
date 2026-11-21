@@ -89,11 +89,16 @@ def main(argv: list[str] | None = None) -> int:
     p = sous.add_parser("marimo", help="lancer marimo avec l'environnement du pack, ex. mak marimo edit notebook.py")
     p.add_argument("arguments", nargs=argparse.REMAINDER)
 
+    p = sous.add_parser("garde", help="la garde avant outil : bilan de ce qu'elle a noté, ou essai d'une commande")
+    p.add_argument("action", choices=["bilan", "essai"])
+    p.add_argument("cible", nargs="?", help="pour essai : la commande à juger, ou l'adresse pour --outil WebFetch")
+    p.add_argument("--outil", default="Bash", help="Bash (défaut), PowerShell, WebFetch ou WebSearch")
+
     sous.add_parser("mcp", help="serveur MCP en entrée/sortie standard")
 
     p = sous.add_parser("hook", help="hook pour Claude Code ou Copilot : relecture après écriture, contexte au démarrage")
-    p.add_argument("evenement", nargs="?", help="sessionStart pour donner le contexte du poste (Copilot) ; "
-                   "Claude Code envoie l'événement lui-même")
+    p.add_argument("evenement", nargs="?", help="sessionStart ou preToolUse pour Copilot ; Claude Code envoie "
+                   "l'événement lui-même")
     p.add_argument("--executer", action="store_true", help="exécuter aussi les cellules (plus lent)")
 
     p = sous.add_parser("installer", help="poser le skill, la configuration de marimo, le hook ou le serveur MCP")
@@ -188,6 +193,23 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(en_texte(constats, os.environ, (infos or {}).get("version")))
         return 0 if not any(c.etat in ("à régler", "attention") for c in constats) else 1
+
+    if args.commande == "garde":
+        from .environnement import charger
+        from .garde import bilan, juger, mode_garde
+
+        config = charger()
+        if args.action == "bilan":
+            print(bilan(config))
+            return 0
+        champ = "url" if args.outil.lower() in ("webfetch", "web_fetch") else "query" if "search" in args.outil.lower() else "command"
+        refus = juger(args.outil, {champ: args.cible or ""}, config)
+        if not refus:
+            print(f"Passe (réseau {config.mode}, garde {mode_garde(config)}).")
+            return 0
+        verbe = "Refusée" if mode_garde(config) == "agir" else "Serait refusée (mode observer)"
+        print(f"{verbe} :\n" + "\n".join(f"  [{r.regle}] {r.raison}" for r in refus))
+        return 1
 
     if args.commande == "mcp":
         from .mcp_serveur import servir

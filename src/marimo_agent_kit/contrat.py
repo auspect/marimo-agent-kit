@@ -25,6 +25,10 @@ def reference_regles() -> str:
         "| avertissement | Le notebook tourne, mais la réactivité ou la lecture en souffre. Corrige, ou dis pourquoi tu ne le fais pas. |",
         "| conseil | La lisibilité en souffre. Applique le conseil aux cellules que tu viens d'écrire. |",
         "",
+        "Les règles `AG3xx` touchent à la sécurité du poste : commande du shell, `eval`, chargement de pickle, HTML",
+        "construit à partir de données, adresse externe, identifiants du poste. Elles aident la relecture humaine et",
+        "ne bloquent rien. Avant d'en ignorer une, dis à l'utilisateur pourquoi le code en a besoin.",
+        "",
     ]
     for gravite in GRAVITES:
         for code, regle in REGLES.items():

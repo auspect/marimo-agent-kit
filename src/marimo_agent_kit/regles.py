@@ -838,3 +838,6 @@ def appliquer(carnet: Carnet, selection: set[str] | None = None, ignorer: set[st
     ordre = {g: i for i, g in enumerate(GRAVITES)}
     resultat.sort(key=lambda d: (ordre[d.gravite], d.cellule if d.cellule is not None else -1, d.ligne or 0, d.code))
     return resultat
+
+
+from . import regles_securite  # noqa: E402, F401  (enregistre les règles AG3xx)

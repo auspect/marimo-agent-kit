@@ -25,7 +25,8 @@ l'installer. Ne la télécharge pas toi-même.
 Au début de la session, lance `mak contexte`, sauf si son texte, « Réseau du poste », est déjà
 dans ton contexte. Il dit d'où viennent les paquets, quel proxy sert, et ce qui t'est interdit.
 Par défaut, rien ne sort vers le web public : ni installation hors de uv ou pixi configurés, ni
-page de documentation, ni script. Si une ressource manque, dis-le à l'utilisateur.
+page de documentation, ni script. Si une ressource manque, dis-le à l'utilisateur. Une garde du kit
+note, ou refuse selon son réglage, les commandes qui sortent de ce cadre.
 
 ## 1. Choisir où écrire
 
@@ -97,6 +98,9 @@ insertion.
   vérification. Dis-le dans ton compte rendu et n'annonce pas un notebook vérifié.
 - `reference/regles.md` ou `mak regles --reference` explique chaque règle. Si une règle se trompe
   sur un cas précis, passe `--ignorer AG203` et dis pourquoi.
+- Les avertissements `AG3xx` touchent à la sécurité : commande du shell, `eval`, `pickle`, HTML
+  construit à partir de données, adresse externe, identifiants du poste. Évite ce code. S'il est
+  nécessaire, dis à l'utilisateur pourquoi.
 
 ## Les autres skills du kit
 

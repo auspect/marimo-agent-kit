@@ -12,6 +12,10 @@ se désactive par `--ignorer CODE`.
 | avertissement | Le notebook tourne, mais la réactivité ou la lecture en souffre. Corrige, ou dis pourquoi tu ne le fais pas. |
 | conseil | La lisibilité en souffre. Applique le conseil aux cellules que tu viens d'écrire. |
 
+Les règles `AG3xx` touchent à la sécurité du poste : commande du shell, `eval`, chargement de pickle, HTML
+construit à partir de données, adresse externe, identifiants du poste. Elles aident la relecture humaine et
+ne bloquent rien. Avant d'en ignorer une, dis à l'utilisateur pourquoi le code en a besoin.
+
 ## AG001 `valeur-ui-meme-cellule`, erreur
 
 Lire `.value` d'un élément d'interface dans la cellule qui le crée.
@@ -155,6 +159,54 @@ Importer un module qui manque à l'en-tête PEP 723 du notebook.
 **Pourquoi.** `marimo edit --sandbox` et `uv run notebook.py` n'installent que l'en-tête. L'import échouera chez toute personne qui ouvre le notebook.
 
 **Correction.** Ajoute le paquet à `dependencies` dans l'en-tête `# /// script`. Dans une session marimo pair, utilise `ctx.packages.add("paquet")`.
+
+## AG301 `commande-shell`, avertissement
+
+Lancer une commande du système depuis une cellule : `subprocess`, `os.system`, `os.popen`.
+
+**Pourquoi.** La commande tourne avec les droits de la personne qui ouvre le notebook. Avec `shell=True` ou un texte assemblé, une valeur venue de données peut ajouter une commande.
+
+**Correction.** Fais-le en Python quand une bibliothèque existe. Sinon, passe une liste d'arguments sans `shell=True`, et dis à l'utilisateur pourquoi la commande est nécessaire.
+
+## AG302 `eval-exec`, avertissement
+
+Appeler `eval` ou `exec` sur un texte qui n'est pas écrit dans le code.
+
+**Pourquoi.** Le texte s'exécute comme du code. S'il vient d'un fichier, d'une page, d'un modèle ou d'un contrôle, il peut faire n'importe quoi sur le poste.
+
+**Correction.** Lis la donnée avec un analyseur, par exemple `json.loads` ou `ast.literal_eval`.
+
+## AG303 `chargement-non-sur`, avertissement
+
+Charger un fichier par `pickle`, `joblib`, `pandas.read_pickle`, `torch.load` sans `weights_only=True`, `numpy.load(allow_pickle=True)` ou `yaml.load` sans chargeur sûr.
+
+**Pourquoi.** Ces formats peuvent contenir du code, qui s'exécute au chargement. Un fichier reçu ou téléchargé suffit.
+
+**Correction.** Préfère Parquet, CSV, JSON ou safetensors. Pour un fichier que tu n'as pas produit, demande d'abord à l'utilisateur.
+
+## AG304 `html-interpole`, avertissement
+
+Construire `mo.Html` ou `mo.iframe` en y insérant des valeurs calculées sans les échapper.
+
+**Pourquoi.** Le HTML s'affiche dans l'éditeur, qui peut lancer du code. Une valeur venue d'un fichier, d'une page ou d'une API peut y glisser un script.
+
+**Correction.** Échappe chaque valeur par `html.escape(...)`, ou affiche les données par `mo.ui.table`, `mo.md` ou un graphique.
+
+## AG305 `adresse-externe`, avertissement
+
+Lire depuis une adresse écrite en dur dont l'hôte n'est pas déclaré interne, quand le poste n'est pas en mode réseau public.
+
+**Pourquoi.** La cellule sort du poste à chaque exécution : alerte de sécurité au travail, échec hors ligne, et des données qui changent sans prévenir.
+
+**Correction.** Télécharge le fichier une fois, par un moyen que l'utilisateur valide, puis lis la copie locale. Ou déclare l'hôte dans `MAK_HOTES_INTERNES` s'il est interne.
+
+## AG306 `identifiants-du-poste`, avertissement
+
+Lire un fichier d'identifiants du poste (`~/.ssh`, `.netrc`, `.aws/credentials`…) ou afficher tout `os.environ`.
+
+**Pourquoi.** La sortie d'une cellule part dans le notebook, ses exports et le contexte de l'assistant. Les variables d'environnement contiennent souvent des jetons.
+
+**Correction.** Lis seulement la variable utile, par `os.environ["NOM"]`, et n'affiche pas sa valeur.
 
 ## AG109 `except-large`, conseil
 

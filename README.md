@@ -25,7 +25,8 @@ marimo. Voici ce que chaque contrôle y trouve.
 | `python mauvais.py` | La première erreur, puis l'arrêt. |
 | `mak verifier mauvais.py` | Les dix erreurs avant l'exécution, soit 4 erreurs et 6 avertissements. L'exécution confirme les trois cellules qui plantent. |
 
-Les règles `AG001` à `AG210` visent les erreurs qui reviennent. En voici quelques-unes :
+Les règles `AG001` à `AG210` visent les erreurs qui reviennent, et les règles `AG301` à `AG306`
+ce qui touche à la sécurité du poste. En voici quelques-unes :
 
 - lire `.value` dans la cellule qui crée l'élément d'interface ;
 - écrire `mo.md("{x}")` sans le préfixe `f` ;
@@ -33,13 +34,16 @@ Les règles `AG001` à `AG210` visent les erreurs qui reviennent. En voici quelq
 - ranger des éléments d'interface dans une liste Python ;
 - écrire `if bouton.value:`, qui laisse des noms indéfinis ;
 - appeler `asyncio.run`, qui passe en script et échoue dans l'éditeur ;
-- appeler `display()`, ou laisser un secret en clair.
+- appeler `display()`, ou laisser un secret en clair ;
+- lancer une commande du shell, charger un pickle, ou construire `mo.Html` à partir de données
+  sans les échapper.
 
 Le fichier [`skills/marimo-agent-kit/reference/regles.md`](skills/marimo-agent-kit/reference/regles.md)
 donne la liste complète et la raison de chaque règle.
 
-Sur 21 notebooks de cours écrits par des agents puis relus, le kit ne trouve ni erreur ni
-avertissement. Il ne donne que des conseils de lisibilité.
+Sur 21 notebooks de cours écrits par des agents puis relus, le kit ne trouve aucune erreur et un
+seul avertissement. C'est un `AG304` sur un tableau HTML assemblé à partir de morceaux déjà
+échappés, que la règle ne sait pas suivre. Le reste est fait de conseils de lisibilité.
 
 ## Contenu
 
@@ -56,6 +60,7 @@ avertissement. Il ne donne que des conseils de lisibilité.
 | `mak.audit()` | Toi, dans le notebook | Affiche le rapport et le message à renvoyer à l'agent. |
 | `mak sonde-llm`, `mak confidentialite` | Toi, au travail | Testent ce qu'un LLM interne accepte, et ce qui sort du poste. |
 | `mak contexte`, `mak marimo` | Les agents, toi | Disent le réseau du poste et ses consignes, et lancent marimo avec l'environnement du pack. |
+| `mak garde` | Toi | Fait le bilan de la garde avant outil, ou juge une commande à l'essai. |
 
 Les six outils MCP sont `verifier_notebook`, `verifier_cellules`, `api_marimo`,
 `chercher_api_marimo`, `widgets_wigglystuff` et `regles_marimo`.
@@ -122,8 +127,9 @@ Les options choisissent ce que l'installateur pose :
   `.claude/skills/` ou `.github/skills/`. `--seulement wigglystuff,marimo-lens` restreint la liste.
 - `--marimo` ajoute le contrat et le serveur MCP à `pyproject.toml`. Le serveur MCP de l'assistant
   demande `marimo[mcp]` dans l'environnement qui lance marimo.
-- `--hook-claude` ajoute deux hooks à `.claude/settings.json`. L'un relit chaque notebook écrit,
-  l'autre donne à l'agent le contexte réseau du poste au démarrage de la session.
+- `--hook-claude` ajoute trois hooks à `.claude/settings.json`. Le premier relit chaque notebook
+  écrit. Le deuxième donne à l'agent le contexte réseau du poste au démarrage de la session. Le
+  troisième est la garde avant outil. Copilot lit aussi ce fichier.
 - `--mcp-claude` ajoute le serveur MCP à `.mcp.json`. Un serveur MCP lance du code chez toute
   personne qui ouvre le projet. Ne pose cette option qu'en connaissance de cause.
 
@@ -284,6 +290,33 @@ proxy, et l'installation d'un paquet manquant suit le mode réseau.
 mak marimo edit notebook.py
 ```
 
+### Garde avant outil
+
+La garde juge chaque commande de l'agent avant qu'elle tourne, dans Claude Code comme dans
+Copilot, Windows compris. Elle vise ce que le contexte réseau interdit déjà en mots :
+
+- `pip install` ;
+- un index ou une source `git+` vers un hôte qui n'est pas déclaré interne ;
+- `curl`, `wget` ou `Invoke-WebRequest` vers un tel hôte ;
+- `npx` ;
+- uv sans `--offline` quand le kit l'a coupé du réseau ;
+- la recherche web, et la lecture d'une page externe.
+
+Un hôte est interne s'il est déclaré : dépôt de uv ou de pixi, proxy, `NO_PROXY`,
+`MAK_HOTES_INTERNES`, ou adresse privée. Un hôte public connu, comme pypi.org ou github.com, ne
+l'est jamais. En mode réseau `public`, la garde ne juge rien.
+
+`MAK_GARDE` règle son action. `observer`, le défaut, note ce qu'elle aurait refusé sans rien
+bloquer. `agir` refuse et donne la raison à l'agent. `off` l'éteint. Le journal ne garde que la
+règle, l'outil et un court extrait, dans `~/.local/state/marimo-agent-kit/garde.jsonl` ou
+`%LOCALAPPDATA%\marimo-agent-kit\garde.jsonl`. Après quelques jours, lis le bilan. Si chaque
+ligne est un vrai écart, passe en `agir`.
+
+```bash
+mak garde bilan
+mak garde essai "uv pip install --index-url https://pypi.org/simple polars"
+```
+
 ## Limites
 
 - Les règles lisent la syntaxe, pas les types. `df.sort(...)` seul dans une cellule reçoit un
@@ -292,8 +325,10 @@ mak marimo edit notebook.py
   notebooks de cours. C'est un conseil à lire, pas une correction à appliquer partout.
 - L'exécution écrit `__marimo__/session/<notebook>.json` à côté du notebook. Le dossier
   `__marimo__/` est d'ordinaire ignoré par git.
-- Les commandes que l'agent lance lui-même ne passent pas par le kit. Le contexte réseau lui dit
-  d'ajouter `--offline` à uv, mais rien ne l'y oblige.
+- La garde lit le texte des commandes. Une commande déguisée, par exemple un script Python qui
+  télécharge, lui échappe. Elle ne remplace pas un bac à sable.
+- Les règles `AG3xx` ne suivent pas les données d'une cellule à l'autre. `AG304` ne voit pas qu'un
+  morceau de HTML a été échappé avant d'être assemblé ailleurs.
 - La détection des miroirs de pixi lit sa configuration sans lancer pixi, absent des essais. Elle
   n'est pas vérifiée sur un vrai poste.
 - Huit widgets wigglystuff chargent du JavaScript depuis un CDN dans le navigateur. Le skill

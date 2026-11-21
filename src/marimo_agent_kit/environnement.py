@@ -10,6 +10,7 @@ dans l'environnement du shell garde sa valeur.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 import ssl
@@ -117,6 +118,35 @@ class Configuration:
             sauf += f" et {len(exclus) - 6} autres (`NO_PROXY`)"
         return masquer(cible) + sauf
 
+    def hotes_internes(self) -> set[str]:
+        hotes = {"localhost"}
+        for source in (*self.depots_uv, *self.miroirs_python, *self.depots_pixi):
+            if source.interne:
+                hotes.add((urllib.parse.urlsplit(source.url).hostname or "").lower())
+        cible = self.proxy().get("https_proxy") or self.proxy().get("http_proxy") or ""
+        hotes.add((urllib.parse.urlsplit(cible).hostname or "").lower())
+        for liste in (self.proxy().get("no_proxy", ""), self.env.get("MAK_HOTES_INTERNES", "")):
+            hotes |= {h.strip().lstrip("*").lstrip(".").lower() for h in liste.split(",")}
+        return {h for h in hotes if h and "/" not in h}
+
+    def hote_interne(self, hote: str) -> bool:
+        hote = hote.lower().strip("[]")
+        if not hote or any(hote == p or hote.endswith("." + p) for p in HOTES_PUBLICS):
+            return False
+        try:
+            adresse = ipaddress.ip_address(hote)
+            return adresse.is_private or adresse.is_loopback
+        except ValueError:
+            pass
+        return any(hote == h or hote.endswith("." + h) for h in self.hotes_internes())
+
+    def hote_permis(self, hote: str) -> bool:
+        if self.mode == "public":
+            return True
+        if self.mode == "aucun":
+            return hote.lower().strip("[]") in ("localhost", "127.0.0.1", "::1")
+        return self.hote_interne(hote)
+
     def fichier_ca(self) -> str | None:
         return _lire(self.env, "SSL_CERT_FILE") or _lire(self.env, "REQUESTS_CA_BUNDLE")
 
@@ -135,6 +165,12 @@ def valeur_affichable(nom: str, valeur: str) -> str:
 
 def _accueil(env: Mapping[str, str]) -> Path:
     return Path(env.get("USERPROFILE") or env.get("HOME") or Path.home())
+
+
+def dossier_etat(env: Mapping[str, str]) -> Path:
+    if os.name == "nt" and env.get("LOCALAPPDATA"):
+        return Path(env["LOCALAPPDATA"]) / "marimo-agent-kit"
+    return Path(env.get("XDG_STATE_HOME") or _accueil(env) / ".local" / "state") / "marimo-agent-kit"
 
 
 def _dossier_config(env: Mapping[str, str]) -> Path:

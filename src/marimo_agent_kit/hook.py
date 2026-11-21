@@ -7,6 +7,10 @@ passer, et `hookSpecificOutput.additionalContext` ajoute du contexte. Copilot li
 
 Au démarrage, Claude Code envoie `hook_event_name: "SessionStart"` et Copilot appelle
 `mak hook sessionStart`. Le hook rend alors le contexte réseau du poste.
+
+Avant un outil (`PreToolUse`, ou `mak hook preToolUse` pour Copilot), la garde juge la commande.
+Elle refuse par le code 2 et la raison sur la sortie d'erreur, que les deux agents comprennent.
+Chez Copilot, tout code non nul refuse l'outil : la garde ne doit donc jamais planter.
 """
 
 from __future__ import annotations
@@ -55,6 +59,31 @@ def debut_de_session(donnees: dict, origine: str) -> int:
     return 0
 
 
+def avant_outil(donnees: dict) -> int:
+    from .environnement import charger
+    from .garde import juger, mode_garde, noter
+
+    try:
+        if "tool_name" in donnees:
+            outil, args = str(donnees.get("tool_name", "")), donnees.get("tool_input") or {}
+        else:
+            outil, args = str(donnees.get("toolName", "")), donnees.get("toolArgs") or {}
+            if isinstance(args, str):
+                args = json.loads(args)
+        config = charger(Path(donnees["cwd"]) if isinstance(donnees.get("cwd"), str) else None)
+        mode = mode_garde(config)
+        refus = juger(outil, args, config) if isinstance(args, dict) and mode != "off" else []
+        if not refus:
+            return 0
+        noter(config, outil, refus, "refusé" if mode == "agir" else "aurait refusé")
+        if mode != "agir":
+            return 0
+    except Exception:  # noqa: BLE001 : une garde qui plante bloquerait l'agent chez Copilot
+        return 0
+    sys.stderr.write("marimo-agent-kit, garde du poste : " + " ".join(r.raison for r in refus) + "\n")
+    return 2
+
+
 def principal(entree=None, executer: bool = False, evenement: str | None = None) -> int:
     try:
         donnees = json.loads((entree or sys.stdin).read() or "{}")
@@ -66,6 +95,8 @@ def principal(entree=None, executer: bool = False, evenement: str | None = None)
         return debut_de_session(donnees, "claude")
     if (evenement or "").lower() == "sessionstart":
         return debut_de_session(donnees, "copilot")
+    if donnees.get("hook_event_name") == "PreToolUse" or (evenement or "").lower() == "pretooluse":
+        return avant_outil(donnees)
     origine, chemin = chemin_ecrit(donnees)
     if chemin is None or chemin.suffix != ".py" or not chemin.exists():
         return 0
