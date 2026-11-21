@@ -1,6 +1,6 @@
 [project]
 name = "marimo-agent-kit"
-version = "0.5.0"
+version = "0.6.0"
 description = "Contrôles, outils MCP, skills et hook pour que les agents écrivent des notebooks marimo justes et lisibles."
 readme = "README.md"
 requires-python = ">=3.10"

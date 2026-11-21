@@ -128,11 +128,11 @@ class Installateur(unittest.TestCase):
         with tempfile.TemporaryDirectory() as dossier:
             dossier = Path(dossier)
             (dossier / "pyproject.toml").write_text('[project]\nname = "x"\nversion = "0"\n', encoding="utf-8")
-            avant = installer(dossier, "agents", True, True, True, appliquer=False, source="/kit", noms=("marimo-agent-kit",))
+            avant = installer(dossier, "agents", True, "claude", True, appliquer=False, source="/kit", noms=("marimo-agent-kit",))
             self.assertTrue(all(a.etat == "à créer" for a in avant))
             self.assertEqual(sorted(p.name for p in dossier.iterdir()), ["pyproject.toml"])
-            installer(dossier, "agents", True, True, True, appliquer=True, source="/kit", noms=("marimo-agent-kit",))
-            apres = installer(dossier, "agents", True, True, True, appliquer=True, source="/kit", noms=("marimo-agent-kit",))
+            installer(dossier, "agents", True, "claude", True, appliquer=True, source="/kit", noms=("marimo-agent-kit",))
+            apres = installer(dossier, "agents", True, "claude", True, appliquer=True, source="/kit", noms=("marimo-agent-kit",))
             self.assertTrue(all(a.etat == "déjà là" for a in apres), [(a.cible, a.etat) for a in apres])
             reglages = json.loads((dossier / ".claude" / "settings.json").read_text(encoding="utf-8"))
             self.assertEqual(reglages["hooks"]["PostToolUse"][0]["hooks"][0]["command"], "uvx --from /kit mak hook")
@@ -148,7 +148,7 @@ class Installateur(unittest.TestCase):
             dossier = Path(dossier)
             texte = '[project]\nname = "x"\n\n[tool.marimo.ai]\nrules = "les miennes"\n'
             (dossier / "pyproject.toml").write_text(texte, encoding="utf-8")
-            actions = installer(dossier, None, True, False, False, appliquer=True)
+            actions = installer(dossier, None, True, None, False, appliquer=True)
             self.assertEqual(actions[0].etat, "à compléter à la main")
             self.assertEqual((dossier / "pyproject.toml").read_text(encoding="utf-8"), texte)
 

@@ -113,13 +113,13 @@ uv tool install marimo-agent-kit
 Dans un projet, l'installateur affiche d'abord ce qu'il ferait :
 
 ```bash
-mak installer --skill agents --marimo --hook-claude
+mak installer --skill agents --marimo --hooks
 ```
 
 L'option `--appliquer` écrit les fichiers. L'installateur n'écrase jamais un fichier existant.
 
 ```bash
-mak installer --skill agents --marimo --hook-claude --appliquer
+mak installer --skill agents --marimo --hooks --appliquer
 ```
 
 Les options choisissent ce que l'installateur pose :
@@ -128,11 +128,15 @@ Les options choisissent ce que l'installateur pose :
   `.claude/skills/` ou `.github/skills/`. `--seulement wigglystuff,marimo-lens` restreint la liste.
 - `--marimo` ajoute le contrat et le serveur MCP à `pyproject.toml`. Le serveur MCP de l'assistant
   demande `marimo[mcp]` dans l'environnement qui lance marimo.
-- `--hook-claude` ajoute trois hooks à `.claude/settings.json`. Le premier relit chaque notebook
-  écrit. Le deuxième donne à l'agent le contexte réseau du poste au démarrage de la session. Le
-  troisième est la garde avant outil. Copilot lit aussi ce fichier.
-- `--mcp-claude` ajoute le serveur MCP à `.mcp.json`. Un serveur MCP lance du code chez toute
-  personne qui ouvre le projet. Ne pose cette option qu'en connaissance de cause.
+- `--hooks` pose trois hooks. Le premier relit chaque notebook écrit. Le deuxième donne à l'agent
+  le contexte réseau du poste au démarrage de la session. Le troisième est la garde avant outil.
+  Par défaut, ils vont dans `.claude/settings.json`, que lisent Claude Code et Copilot.
+  `--hooks github` les met dans `.github/hooks/marimo-agent-kit.json`, que lit Copilot seul. Ne
+  pose qu'un des deux, sinon Copilot lancerait chaque hook deux fois ; l'installateur refuse le
+  second.
+- `--mcp` ajoute le serveur MCP à `.mcp.json`, que lisent Claude Code et Copilot. Un serveur MCP
+  lance du code chez toute personne qui ouvre le projet. Ne pose cette option qu'en connaissance
+  de cause.
 
 ## Utiliser
 
@@ -274,8 +278,8 @@ consigne. Les variables vont à tout ce que le kit lance : `marimo check`, l'ex�
 la sonde LLM et `mak marimo`. Le kit masque l'identifiant et le mot de passe d'une adresse de
 proxy dans ce qu'il affiche, mais le fichier reste en clair. N'y mets pas de mot de passe.
 
-L'agent reçoit le contexte réseau de trois façons. Le hook de démarrage de Claude Code le lui
-donne, l'outil MCP `regles_marimo` le rend avec le contrat, et le skill lui demande de lancer
+L'agent reçoit le contexte réseau de trois façons. Le hook de démarrage le lui donne, dans
+Claude Code comme dans Copilot. L'outil MCP `regles_marimo` le rend avec le contrat, et le skill lui demande de lancer
 `mak contexte`. Ce contexte lui interdit `pip install`, les options `--index-url`, les sources
 `git+https` et la documentation en ligne. Il le renvoie vers `mak api`, `mak widgets` et les
 références des skills. `mak contexte --detail` te montre d'où vient chaque réglage.

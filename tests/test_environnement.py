@@ -11,7 +11,7 @@ sys.path.insert(0, str(ICI.parent / "src"))
 
 from marimo_agent_kit.environnement import charger, contexte_agent, detail_configuration, lire_fichier_env  # noqa: E402
 from marimo_agent_kit.hook import principal  # noqa: E402
-from marimo_agent_kit.installer import poser_hook_claude  # noqa: E402
+from marimo_agent_kit.installer import poser_hooks, poser_mcp  # noqa: E402
 
 INTERNE = "https://artifactory.exemple.interne/api/pypi/pypi/simple"
 
@@ -176,12 +176,32 @@ class Branchements(Poste):
                 self.assertIn("Les données restent sur le partage.", texte)
 
     def test_installateur_pose_les_deux_hooks_une_fois(self):
-        poser_hook_claude(self.racine, appliquer=True, source="marimo-agent-kit")
-        poser_hook_claude(self.racine, appliquer=True, source="marimo-agent-kit")
+        poser_hooks(self.racine, appliquer=True, source="marimo-agent-kit")
+        poser_hooks(self.racine, appliquer=True, source="marimo-agent-kit")
         reglages = json.loads((self.racine / ".claude" / "settings.json").read_text(encoding="utf-8"))
         self.assertEqual(len(reglages["hooks"]["PostToolUse"]), 1)
         self.assertEqual(len(reglages["hooks"]["SessionStart"]), 1)
         self.assertNotIn("matcher", reglages["hooks"]["SessionStart"][0])
+        self.assertEqual(len(reglages["hooks"]["PreToolUse"]), 1)
+        refus = poser_hooks(self.racine, appliquer=True, source="marimo-agent-kit", cible="github")
+        self.assertEqual(refus[0].etat, "à compléter à la main")
+        self.assertFalse((self.racine / ".github" / "hooks" / "marimo-agent-kit.json").exists())
+
+    def test_hooks_pour_copilot_seul(self):
+        poser_hooks(self.racine, appliquer=True, source="marimo-agent-kit", cible="github")
+        poser_hooks(self.racine, appliquer=True, source="marimo-agent-kit", cible="github")
+        fichier = json.loads((self.racine / ".github" / "hooks" / "marimo-agent-kit.json").read_text(encoding="utf-8"))
+        self.assertEqual(fichier["version"], 1)
+        self.assertEqual({e: len(v) for e, v in fichier["hooks"].items()},
+                         {"sessionStart": 1, "preToolUse": 1, "postToolUse": 1})
+        avant = fichier["hooks"]["preToolUse"][0]
+        self.assertEqual((avant["bash"], avant["powershell"]), ("uvx --from marimo-agent-kit mak hook preToolUse",) * 2)
+        self.assertEqual(poser_hooks(self.racine, appliquer=True, source="marimo-agent-kit")[0].etat, "à compléter à la main")
+
+    def test_mcp_dans_le_fichier_commun(self):
+        poser_mcp(self.racine, appliquer=True, source="marimo-agent-kit")
+        serveur = json.loads((self.racine / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["marimo_agent_kit"]
+        self.assertEqual(serveur["args"][-1], "mcp")
 
 
 if __name__ == "__main__":

@@ -127,8 +127,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--skill", choices=["agents", "claude", "github"], help="où poser les skills")
     p.add_argument("--seulement", help="skills à poser, séparés par des virgules (défaut : tous)")
     p.add_argument("--marimo", action="store_true", help="contrat et serveur MCP dans [tool.marimo] de pyproject.toml")
-    p.add_argument("--hook-claude", action="store_true")
-    p.add_argument("--mcp-claude", action="store_true")
+    p.add_argument("--hooks", nargs="?", const="claude", choices=["claude", "github"],
+                   help="relecture, contexte réseau et garde. claude (défaut) : .claude/settings.json, lu par Claude "
+                        "Code et Copilot ; github : .github/hooks/, lu par Copilot seul")
+    p.add_argument("--mcp", action="store_true", help="serveur MCP dans .mcp.json, lu par Claude Code et Copilot")
     p.add_argument("--source", help="d'où uvx installe le kit (chemin ou git+https://…#subdirectory=marimo-agent-kit)")
     p.add_argument("--remplacer", action="store_true", help="remplacer les fichiers du skill qui diffèrent")
     p.add_argument("--appliquer", action="store_true", help="écrire ; sans lui, l'installateur dit seulement ce qu'il ferait")
@@ -253,10 +255,10 @@ def main(argv: list[str] | None = None) -> int:
         if inconnus:
             print(f"Skills inconnus : {', '.join(inconnus)}. Disponibles : {', '.join(SKILLS)}.", file=sys.stderr)
             return 2
-        actions = installer(args.dossier.resolve(), args.skill, args.marimo, args.hook_claude, args.mcp_claude,
+        actions = installer(args.dossier.resolve(), args.skill, args.marimo, args.hooks, args.mcp,
                             args.appliquer, args.remplacer, args.source, noms)
         if not actions:
-            print("Rien de demandé : choisis --skill, --marimo, --hook-claude ou --mcp-claude.")
+            print("Rien de demandé : choisis --skill, --marimo, --hooks ou --mcp.")
             return 2
         for action in actions:
             print(f"[{action.etat}] {action.cible}" + (f"\n    {action.detail}" if action.detail else ""))

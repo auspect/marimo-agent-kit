@@ -11,6 +11,8 @@ from .ressources import SKILLS, dossier_skill
 
 ICI = Path(__file__).resolve().parent
 DOSSIERS_SKILL = {"agents": ".agents/skills", "claude": ".claude/skills", "github": ".github/skills"}
+# `.claude/settings.json` est lu par Claude Code et par Copilot ; `.github/hooks/` par Copilot seul.
+FICHIERS_HOOKS = {"claude": ".claude/settings.json", "github": ".github/hooks/marimo-agent-kit.json"}
 
 
 @dataclass
@@ -110,8 +112,22 @@ def _fusionner_json(chemin: Path, modifier, appliquer: bool, dossier: Path) -> A
     return Action(nom, "créé" if appliquer else "à créer")
 
 
-def poser_hook_claude(dossier: Path, appliquer: bool, source: str | None = None) -> list[Action]:
+def _hooks_poses(chemin: Path, commande: str) -> bool:
+    try:
+        return commande in chemin.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def poser_hooks(dossier: Path, appliquer: bool, source: str | None = None, cible: str = "claude") -> list[Action]:
     commande = " ".join([*commande_mak(source), "hook"])
+    autre = next(c for c in FICHIERS_HOOKS if c != cible)
+    if _hooks_poses(dossier / FICHIERS_HOOKS[autre], commande):
+        return [Action(FICHIERS_HOOKS[cible], "à compléter à la main",
+                       f"les hooks sont déjà dans {FICHIERS_HOOKS[autre]}. Copilot lit les deux fichiers et lancerait "
+                       "chaque hook deux fois : garde un seul des deux.")]
+    if cible == "github":
+        return [_fusionner_json(dossier / FICHIERS_HOOKS["github"], lambda d: _hooks_copilot(d, commande), appliquer, dossier)]
 
     def modifier(donnees: dict) -> bool:
         hooks = donnees.setdefault("hooks", {})
@@ -126,10 +142,29 @@ def poser_hook_claude(dossier: Path, appliquer: bool, source: str | None = None)
             change = True
         return change
 
-    return [_fusionner_json(dossier / ".claude" / "settings.json", modifier, appliquer, dossier)]
+    return [_fusionner_json(dossier / FICHIERS_HOOKS["claude"], modifier, appliquer, dossier)]
 
 
-def poser_mcp_claude(dossier: Path, appliquer: bool, source: str | None = None) -> list[Action]:
+def _hooks_copilot(donnees: dict, commande: str) -> bool:
+    donnees.setdefault("version", 1)
+    hooks = donnees.setdefault("hooks", {})
+    change = False
+    for evenement, argument, matcher, delai in (
+        ("sessionStart", "sessionStart", "", 30),
+        ("preToolUse", "preToolUse", "bash|powershell|web_fetch|web_search", 15),
+        ("postToolUse", "", "create|edit|str_replace_editor", 120),
+    ):
+        ligne = f"{commande} {argument}".strip()
+        entrees = hooks.setdefault(evenement, [])
+        if any(ligne in (e.get("bash"), e.get("powershell")) for e in entrees):
+            continue
+        entree = {"type": "command", "bash": ligne, "powershell": ligne, "timeoutSec": delai}
+        entrees.append({**entree, "matcher": matcher} if matcher else entree)
+        change = True
+    return change
+
+
+def poser_mcp(dossier: Path, appliquer: bool, source: str | None = None) -> list[Action]:
     commande = commande_mak(source)
 
     def modifier(donnees: dict) -> bool:
@@ -142,7 +177,7 @@ def poser_mcp_claude(dossier: Path, appliquer: bool, source: str | None = None) 
     return [_fusionner_json(dossier / ".mcp.json", modifier, appliquer, dossier)]
 
 
-def installer(dossier: Path, skill: str | None, marimo: bool, hook_claude: bool, mcp_claude: bool,
+def installer(dossier: Path, skill: str | None, marimo: bool, hooks: str | None, mcp: bool,
               appliquer: bool, remplacer: bool = False, source: str | None = None,
               noms: tuple[str, ...] = SKILLS) -> list[Action]:
     actions: list[Action] = []
@@ -150,8 +185,8 @@ def installer(dossier: Path, skill: str | None, marimo: bool, hook_claude: bool,
         actions += poser_skill(dossier, skill, appliquer, remplacer, noms)
     if marimo:
         actions += poser_marimo(dossier, appliquer, source)
-    if hook_claude:
-        actions += poser_hook_claude(dossier, appliquer, source)
-    if mcp_claude:
-        actions += poser_mcp_claude(dossier, appliquer, source)
+    if hooks:
+        actions += poser_hooks(dossier, appliquer, source, hooks)
+    if mcp:
+        actions += poser_mcp(dossier, appliquer, source)
     return actions
