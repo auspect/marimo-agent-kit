@@ -185,7 +185,7 @@ Le bilan du poste, et les lignes à poser en PowerShell ou en bash. Le kit pose 
 ## Développer
 
 ```bash
-uv run --no-project --with marimo python -m unittest discover -s tests
+uv run --no-project --with marimo --with polars python -m unittest discover -s tests
 uvx ruff check .
 ```
 

@@ -30,6 +30,7 @@ from marimo_agent_kit.mcp_serveur import traiter  # noqa: E402
 MAUVAIS = ICI / "exemples" / "mauvais.py"
 PROPRE = ICI / "exemples" / "propre.py"
 AVEC_MARIMO = importlib.util.find_spec("marimo") is not None
+AVEC_POLARS = importlib.util.find_spec("polars") is not None  # les exemples l'importent
 
 
 def lancer_cli(*args: str, entree: str = "") -> tuple[int, str]:
@@ -182,7 +183,7 @@ class FichiersGeneres(unittest.TestCase):
                                      "mets la copie à jour : mak installer --skill github --remplacer --appliquer")
 
 
-@unittest.skipUnless(AVEC_MARIMO, "marimo absent de ce Python")
+@unittest.skipUnless(AVEC_MARIMO and AVEC_POLARS, "marimo ou polars absent de ce Python")
 class AvecMarimo(unittest.TestCase):
     def test_exemple_mauvais_et_propre_de_bout_en_bout(self):
         from marimo_agent_kit.verifier import verifier
