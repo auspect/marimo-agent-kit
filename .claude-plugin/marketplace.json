@@ -4,13 +4,13 @@
     "name": "auspect"
   },
   "metadata": {
-    "description": "Écrire, vérifier et rendre lisibles des notebooks marimo avec un agent ; widgets wigglystuff et marimo-lens",
+    "description": "Écrire, vérifier et rendre lisibles des notebooks marimo avec un agent, avec les widgets wigglystuff et marimo-lens.",
     "version": "0.2.0"
   },
   "plugins": [
     {
       "name": "marimo-agent-kit",
-      "description": "Contrat d'écriture marimo, choix et doc hors ligne des widgets wigglystuff, mise en place de marimo-lens",
+      "description": "Contrat d'écriture marimo, choix des widgets wigglystuff avec leur doc sans réseau, et mise en place de marimo-lens.",
       "source": "./",
       "skills": [
         "./skills"

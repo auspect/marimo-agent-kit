@@ -1,7 +1,7 @@
 [project]
 name = "marimo-agent-kit"
 version = "0.2.0"
-description = "Contrôles, outils MCP, skill et hook pour que les agents écrivent des notebooks marimo justes et lisibles."
+description = "Contrôles, outils MCP, skills et hook pour que les agents écrivent des notebooks marimo justes et lisibles."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

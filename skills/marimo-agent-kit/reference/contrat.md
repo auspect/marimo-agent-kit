@@ -1,21 +1,21 @@
-# Contrat d'écriture marimo (marimo-agent-kit)
+# Contrat d'écriture marimo de marimo-agent-kit
 
 ## Justesse
-1. Un nom public n'a qu'une cellule propriétaire. Pour l'étape suivante, un nouveau nom (`ventes_2024 = ventes.filter(...)`), jamais une réaffectation, jamais un `_` pour contourner : `_nom` n'existe que dans sa cellule.
-2. Ne modifie jamais en place un objet d'une autre cellule (`df["c"] = ...`, `.append`, `inplace=True`) : marimo ne relance pas ceux qui le lisent.
-3. Un élément `mo.ui.*` est affecté à un nom public ; sa `.value` se lit dans une autre cellule. Plusieurs éléments : `mo.ui.array`, `mo.ui.dictionary`.
-4. Seule la dernière expression s'affiche ; plusieurs sorties : `mo.vstack([...])`.
-5. Toute valeur calculée citée dans un texte est interpolée : `mo.md(f"... {valeur:.2f} ...")`.
-6. Calcul lancé par un bouton : `mo.ui.run_button(label=...)`, puis `mo.stop(not bouton.value, mo.md("..."))` en tête de la cellule de calcul, jamais `if bouton.value:`.
-7. `await` directement dans la cellule, jamais `asyncio.run`. Ni `display()`, ni `!pip`, ni `%magic` : ce n'est pas Jupyter.
+1. Un nom public n'a qu'une cellule propriétaire. Pour l'étape suivante, crée un nouveau nom, par exemple `ventes_2024 = ventes.filter(...)`. Ne réaffecte jamais un nom. N'utilise jamais un `_` pour contourner la règle, car `_nom` n'existe que dans sa cellule.
+2. Ne modifie jamais en place un objet d'une autre cellule, que ce soit par `df["c"] = ...`, `.append` ou `inplace=True`. marimo ne relance pas les cellules qui lisent cet objet.
+3. Affecte chaque élément `mo.ui.*` à un nom public, et lis sa `.value` dans une autre cellule. Pour plusieurs éléments, utilise `mo.ui.array` ou `mo.ui.dictionary`.
+4. Seule la dernière expression s'affiche. Pour plusieurs sorties, utilise `mo.vstack([...])`.
+5. Interpole chaque valeur calculée qu'un texte cite, par exemple `mo.md(f"... {valeur:.2f} ...")`.
+6. Pour un calcul lancé par un bouton, crée `mo.ui.run_button(label=...)`, puis écris `mo.stop(not bouton.value, mo.md("..."))` en tête de la cellule de calcul. N'écris jamais `if bouton.value:`.
+7. Écris `await` directement dans la cellule, jamais `asyncio.run`. N'utilise ni `display()`, ni `!pip`, ni `%magic`, qui viennent de Jupyter.
 
 ## Lisibilité
-8. Une cellule, une idée : le calcul coûteux en amont, la présentation en aval ; les imports regroupés en tête.
-9. Une courte cellule Markdown annonce chaque étape (ce qu'on va voir, pourquoi) ; une conclusion cite des valeurs interpolées.
-10. Chaque contrôle a un `label` ; les contrôles d'un même réglage sont groupés, au-dessus de ce qu'ils pilotent.
-11. Un calcul lourd lié à un curseur passe par `.form()`, un `run_button` ou `@mo.cache`.
-12. Une figure est la dernière expression (`fig`, `plt.gca()`, graphique altair), avec un titre et des axes nommés.
+8. Une cellule porte une idée. Place le calcul coûteux en amont et la présentation en aval. Regroupe les imports en tête.
+9. Une courte cellule Markdown annonce chaque étape et dit pourquoi elle compte. Une conclusion cite des valeurs interpolées.
+10. Chaque contrôle a un `label`. Groupe les contrôles d'un même réglage au-dessus de ce qu'ils pilotent.
+11. Un calcul lourd lié à un curseur passe par `.form()`, par un `run_button` ou par `@mo.cache`.
+12. Termine une cellule de figure par la figure, par exemple `fig`, `plt.gca()` ou un graphique altair. Donne-lui un titre et des axes nommés.
 
 ## Vérification
-13. Avant d'écrire un appel marimo dont tu n'es pas sûr, lis sa signature (outil `api_marimo`, ou `mak api mo.ui.slider`) : n'invente pas de paramètre.
-14. Après chaque modification, vérifie (outil `verifier_notebook`, ou `mak verifier notebook.py`) et corrige toutes les erreurs ; dis ce qui n'a pas pu être vérifié.
+13. Avant d'écrire un appel marimo dont tu n'es pas sûr, lis sa signature par l'outil `api_marimo` ou par `mak api mo.ui.slider`. N'invente pas de paramètre.
+14. Après chaque modification, vérifie le notebook par l'outil `verifier_notebook` ou par `mak verifier notebook.py`. Corrige toutes les erreurs. Dis ce qui n'a pas pu être vérifié.

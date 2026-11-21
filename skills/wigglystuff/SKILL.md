@@ -1,41 +1,41 @@
 ---
 name: wigglystuff
-description: Choisir et utiliser un widget wigglystuff (Slider2D, Tangle, TangleDistribution, ChartPuck, PairPlot, StateViewer, FitProgress, TraceView, Paint, FloatingPanel…) dans un notebook marimo, avec la documentation de la version 0.6.0 lisible hors ligne (pages, signatures, traitlets, démos). À utiliser quand une interaction dépasse mo.ui (deux paramètres d'un geste, nombre réglable dans une phrase, sélection sur un graphique matplotlib, dessin, trace d'algorithme, progression d'un entraînement), ou quand une tâche cite wigglystuff, anywidget ou un de ses widgets. Use for: wigglystuff widgets, anywidget in marimo, interactive explanations, choosing a widget.
+description: Choisir et utiliser un widget wigglystuff dans un notebook marimo, par exemple Slider2D, TangleDistribution, ChartPuck, PairPlot, StateViewer, FitProgress, TraceView, Paint ou FloatingPanel. Le skill embarque la documentation de la version 0.6.0 sans réseau, avec les pages, les signatures, les traitlets et les démos. À utiliser quand une interaction dépasse mo.ui, comme régler deux paramètres d'un geste, glisser un nombre dans une phrase, sélectionner sur un graphique matplotlib, dessiner, suivre un algorithme ou suivre un entraînement. À utiliser aussi quand une tâche cite wigglystuff, anywidget ou un de ses widgets. Use for: wigglystuff widgets, anywidget in marimo, interactive explanations, choosing a widget.
 ---
 
 # Widgets wigglystuff dans marimo
 
-wigglystuff (Vincent Warmerdam, MIT) rassemble environ 70 widgets AnyWidget. Ils servent quand
-l'interaction elle-même aide à comprendre : un geste qui règle deux paramètres, un nombre
-qu'on tire dans une phrase, un algorithme qu'on rejoue ligne à ligne. Pour un réglage ordinaire,
-`mo.ui` suffit et reste le premier choix.
+wigglystuff est une bibliothèque de Vincent Warmerdam, sous licence MIT. Elle rassemble environ 70
+widgets AnyWidget. Ils servent quand l'interaction aide à comprendre. Un geste règle deux
+paramètres, un nombre se glisse dans une phrase, un algorithme se rejoue ligne à ligne. Pour un
+réglage ordinaire, `mo.ui` suffit et reste le premier choix.
 
 ## 1. Choisir
 
-| Besoin | Widget | Idéal pour | Plutôt autre chose si… |
+| Besoin | Widget | Idéal pour | Préfère autre chose si |
 |---|---|---|---|
-| Deux paramètres liés d'un geste | `Slider2D` | point de départ d'une optimisation, couple (μ, σ) | grille discrète → `HeatmapSelect` ; un seul → `mo.ui.slider` |
-| Parcourir une grille précalculée | `HeatmapSelect` | résultats par (a, b), épingler une ligne ou une colonne | valeurs continues → `Slider2D` |
-| Un nombre réglable dans le texte | `TangleSlider`, `TangleChoice`, `TangleSelect` | explications « à la Bret Victor » | formulaire de réglages → `mo.ui` + `.form()` |
-| Une loi de probabilité | `TangleDistribution` | a priori bayésien (14 familles, `sample`, `cdf`…) sans scipy | — |
-| Une formule qui se manipule | `TangleLatex`, `FormulaDAG`, `FormulaAnimation` | cours : paramètres, chaîne de calcul, dérivation pas à pas | formule fixe → `mo.md` avec `$$` |
-| Appeler une fonction typée | `TangleFunction` | explorer une fonction annotée (bornes pydantic) | — |
-| Animer un paramètre ou des images | `PlaySlider`, `FramePlayer` | parcourir le temps, une simulation | — |
-| Saisir une matrice ou un ordre | `Matrix`, `SortableList` | poids, transformations ; priorités | tableau de données → `mo.ui.data_editor` |
-| Sélectionner sur matplotlib | `ChartPuck` (un point), `ChartMultiSelect` (plusieurs classes) | régions étiquetées, un point dans l'espace des données | une région simple dans marimo → `mo.ui.matplotlib` ; `ChartSelect` est pour Jupyter |
-| Beaucoup de données, beaucoup de dimensions | `PairPlot`, `ParallelCoordinates` | 1M+ lignes en WebGL, filtres Keep/Exclude ; brosser des axes | deux variables et quelques milliers de points → `mo.ui.altair_chart` |
-| Un graphique altair qui suit un curseur | `AltairWidget` | mise à jour sans scintillement | sélection dans le graphique → `mo.ui.altair_chart` |
-| Dessiner des données ou un croquis | `ScatterWidget`, `Paint`, `SplineDraw`, `GridDraw`, `Excalidraw` | jeux jouets, étiquetage, schéma | `Excalidraw` exige le réseau |
-| Graphes | `GraphWidget` (depuis Python), `EdgeDraw` (à la main), `Neo4jWidget` | réseaux, dépendances | — |
-| Comprendre un algorithme | `StateViewer`, `LiveEdit`, `AsyncFlow` | backtracking, boucles, asyncio (`AsyncFlow` : Python 3.12+) | — |
-| Suivre un calcul | `FitProgress` (scikit-learn ≥ 1.9), `TraceView` (OpenTelemetry, W&B Weave), `ProgressBar` | GridSearchCV en direct, traces d'agent | boucle simple → `mo.status.progress_bar` |
-| Hiérarchies | `Treemap`, `NestedTable`, `ModuleTreeWidget` (PyTorch) | parts d'un tout, lignes dépliables, architecture d'un modèle | — |
-| Montrer des formes plutôt que des nombres | `shape_display` | algèbre linéaire, `X @ W` | — |
-| Garder un contrôle visible, guider la lecture | `FloatingPanel`, `Pip`, `CellTour`, `Hint`, `WidgetDAG`, `WidgetFlow` | longues pages, visites, flèches explicatives | dans un iframe (molab) : `FloatingPanel`, pas `Pip` |
-| Clavier, manette, voix, webcam | `KeystrokeWidget`, `GamepadWidget`, `WebkitSpeechToTextWidget`, `WebcamCapture`, `AnnotationWidget` | annotation rapide de données | — |
-| Rien ne convient | `EsmWidget`, `ObservablePlot`, `ManimWeb` | une bibliothèque JS d'un CDN | sans réseau : écrire un anywidget (skill `anywidget` de marimo) |
+| Régler deux paramètres liés d'un geste | `Slider2D` | Le point de départ d'une optimisation, un couple (μ, σ) | Une grille discrète demande `HeatmapSelect`, un seul paramètre `mo.ui.slider`. |
+| Parcourir une grille précalculée | `HeatmapSelect` | Des résultats par couple (a, b), une ligne ou une colonne épinglée | Des valeurs continues demandent `Slider2D`. |
+| Régler un nombre dans le texte | `TangleSlider`, `TangleChoice`, `TangleSelect` | Les explications à la manière de Bret Victor | Un formulaire de réglages demande `mo.ui` et `.form()`. |
+| Régler une loi de probabilité | `TangleDistribution` | Un a priori bayésien. Le widget connaît 14 familles et fournit `sample` et `cdf` sans scipy. | |
+| Manipuler une formule | `TangleLatex`, `FormulaDAG`, `FormulaAnimation` | Un cours, avec des paramètres, une chaîne de calcul ou une dérivation pas à pas | Une formule fixe demande `mo.md` avec `$$`. |
+| Appeler une fonction typée | `TangleFunction` | Explorer une fonction annotée, avec les bornes de pydantic | |
+| Animer un paramètre ou des images | `PlaySlider`, `FramePlayer` | Parcourir le temps ou une simulation | |
+| Saisir une matrice ou un ordre | `Matrix`, `SortableList` | Des poids, des transformations, des priorités | Un tableau de données demande `mo.ui.data_editor`. |
+| Sélectionner sur un graphique matplotlib | `ChartPuck` pour un point, `ChartMultiSelect` pour plusieurs classes | Des régions étiquetées, un point dans l'espace des données | Une région simple dans marimo demande `mo.ui.matplotlib`. `ChartSelect` sert à Jupyter. |
+| Explorer beaucoup de données ou de dimensions | `PairPlot`, `ParallelCoordinates` | Plus d'un million de lignes en WebGL, des filtres Keep et Exclude, des axes à brosser | Deux variables et quelques milliers de points demandent `mo.ui.altair_chart`. |
+| Faire suivre un curseur à un graphique altair | `AltairWidget` | Une mise à jour sans scintillement | Une sélection dans le graphique demande `mo.ui.altair_chart`. |
+| Dessiner des données ou un croquis | `ScatterWidget`, `Paint`, `SplineDraw`, `GridDraw`, `Excalidraw` | Des jeux de données jouets, l'étiquetage, un schéma | `Excalidraw` exige le réseau. |
+| Montrer un graphe | `GraphWidget` depuis Python, `EdgeDraw` à la main, `Neo4jWidget` | Des réseaux, des dépendances | |
+| Comprendre un algorithme | `StateViewer`, `LiveEdit`, `AsyncFlow` | Le backtracking, les boucles, asyncio. `AsyncFlow` demande Python 3.12 ou plus. | |
+| Suivre un calcul | `FitProgress`, `TraceView`, `ProgressBar` | Un GridSearchCV en direct avec scikit-learn 1.9 ou plus, des traces OpenTelemetry ou W&B Weave | Une boucle simple demande `mo.status.progress_bar`. |
+| Montrer une hiérarchie | `Treemap`, `NestedTable`, `ModuleTreeWidget` | Les parts d'un tout, des lignes dépliables, l'architecture d'un modèle PyTorch | |
+| Montrer des formes plutôt que des nombres | `shape_display` | L'algèbre linéaire, `X @ W` | |
+| Garder un contrôle visible, guider la lecture | `FloatingPanel`, `Pip`, `CellTour`, `Hint`, `WidgetDAG`, `WidgetFlow` | Les longues pages, les visites, les flèches explicatives | Dans un iframe comme molab, `Pip` ne marche pas. Prends `FloatingPanel`. |
+| Lire le clavier, une manette, la voix ou la webcam | `KeystrokeWidget`, `GamepadWidget`, `WebkitSpeechToTextWidget`, `WebcamCapture`, `AnnotationWidget` | L'annotation rapide de données | |
+| Utiliser une bibliothèque JavaScript | `EsmWidget`, `ObservablePlot`, `ManimWeb` | Une bibliothèque chargée depuis un CDN | Sans réseau, écris un anywidget avec le skill `anywidget` de marimo. |
 
-Le catalogue complet (une ligne par classe) : `references/catalogue.md`.
+`references/catalogue.md` donne une ligne par classe.
 
 ## 2. Brancher dans marimo
 
@@ -55,42 +55,50 @@ def _(depart):
     mo.md(f"Départ en ({depart.x:.2f}, {depart.y:.2f})")
 ```
 
-- **Envelopper et lier** : `nom = mo.ui.anywidget(Widget(...))`, nom public, une cellule pour le
-  créer et l'afficher, une autre pour lire `nom.x` ou `nom.value["x"]`. Sans enveloppe ni nom
-  public, bouger le widget ne relance rien.
-- **Calcul lourd** : lire la valeur « validée » quand elle existe (`committed_amount`,
-  `committed_values`, `params` de `TangleDistribution`) plutôt que la valeur en direct
-  (`amount`, `values`, `live_params`), qui change à chaque pixel.
-- **Aides d'affichage** : `FloatingPanel`, `Hint`, `WidgetDAG`, `WidgetFlow` et `shape_display`
-  ne sont pas des AnyWidget. Pas d'enveloppe : ils sont la dernière expression de la cellule, et
-  le widget qu'ils portent garde son propre nom.
-- **Un widget dans une phrase** : `mo.md(f"… {tangle} …")` avec le widget déjà enveloppé.
-- **Version** : épingler `wigglystuff==<version>` dans l'en-tête PEP 723 ; l'API bouge entre les
-  versions (0.5 → 0.6). Vérifier ensuite par `mak verifier notebook.py`, qui exécute les cellules.
+- Enveloppe chaque widget et lie-le à un nom public par `nom = mo.ui.anywidget(Widget(...))`.
+  Crée et affiche le widget dans une cellule. Lis `nom.x` ou `nom.value["x"]` dans une autre. Sans
+  enveloppe ni nom public, bouger le widget ne relance aucune cellule.
+- Pour un calcul lourd, lis la valeur validée quand le widget en a une. Ce sont
+  `committed_amount`, `committed_values` ou `params` pour `TangleDistribution`. La valeur en
+  direct, `amount`, `values` ou `live_params`, change à chaque pixel.
+- `FloatingPanel`, `Hint`, `WidgetDAG`, `WidgetFlow` et `shape_display` ne sont pas des AnyWidget.
+  Ne les enveloppe pas. Mets-les en dernière expression de la cellule. Le widget qu'ils portent
+  garde son propre nom.
+- Pour glisser un widget dans une phrase, écris `mo.md(f"... {tangle} ...")` avec le widget déjà
+  enveloppé.
+- Épingle `wigglystuff==<version>` dans l'en-tête PEP 723, car l'API change entre les versions 0.5
+  et 0.6. Vérifie ensuite le notebook par `mak verifier notebook.py`, qui exécute les cellules.
 
-Exemple complet et vérifié : `tests/exemples/widgets.py` du dépôt du kit.
+Le dépôt du kit contient un exemple complet et vérifié, `tests/exemples/widgets.py`.
 
-## 3. La documentation, sans réseau
+## 3. La documentation sans réseau
 
-Ne devine pas une signature : un paramètre inventé fait planter la cellule à l'exécution
-(`TangleDistribution(params=[0, 1])` au lieu de `params={"loc": 0, "scale": 1}`).
+Ne devine pas une signature. Un paramètre inventé fait planter la cellule à l'exécution. Par
+exemple, `TangleDistribution(params=[0, 1])` plante, alors que
+`TangleDistribution(params={"loc": 0, "scale": 1})` passe.
 
 ```
-mak widgets                    # le catalogue, et la version installée comparée à celle de la doc
-mak widgets TangleDistribution # la page : usage, signature, traitlets, démo
-mak widgets --chercher lasso   # chercher dans les noms et les résumés
+mak widgets
+mak widgets TangleDistribution
+mak widgets --chercher lasso
 ```
 
-Sans `mak`, lire directement :
+La première commande affiche le catalogue et compare la version installée à celle de la doc. La
+deuxième affiche la page d'un widget, avec son usage, sa signature, ses traitlets et sa démo. La
+troisième cherche un mot dans les noms et les résumés.
 
-- `references/widgets/<page>.md` : la page du site (version 0.6.0), avec la signature, la
-  docstring et les traitlets lus dans le paquet ;
-- `references/demos/<nom>.py` : le notebook de démonstration (le lien est en bas de la page) ;
-- `references/SOURCE.md` : version, commit, licence, et les rares écarts doc/paquet ;
-- dans le noyau (marimo pair) : `help(Widget)` et `Widget.class_traits(sync=True)`, qui font foi
-  pour la version installée.
+Sans `mak`, lis ces fichiers :
+
+- `references/widgets/<page>.md` est la page du site pour la version 0.6.0. Elle contient la
+  signature, la docstring et les traitlets lus dans le paquet.
+- `references/demos/<nom>.py` est le notebook de démonstration. Le lien est en bas de la page.
+- `references/SOURCE.md` donne la version, le commit, la licence et les rares écarts entre la doc
+  et le paquet.
+
+Dans le noyau, par marimo pair, `help(Widget)` et `Widget.class_traits(sync=True)` font foi pour
+la version installée.
 
 ## 4. Avec marimo-lens
 
-Pour qu'un analyste puisse montrer une zone d'un widget et demander une modification, le
-skill `marimo-lens` explique comment rendre un widget sélectionnable.
+Le skill `marimo-lens` explique comment rendre une zone d'un widget sélectionnable. Un analyste
+peut alors la montrer et demander une modification.
