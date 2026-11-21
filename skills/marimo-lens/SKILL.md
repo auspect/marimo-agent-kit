@@ -39,13 +39,16 @@ corrige, vérifie, puis remet le résultat sous les yeux de l'analyste.
 
 ## Lire le mode d'emploi livré dans le paquet
 
-Le paquet livre les instructions pour agents de sa version. Lis-les avant d'agir.
+Le paquet livre les instructions pour agents de sa version. Lis-les avant d'agir, depuis
+l'environnement du notebook, où marimo-lens est déjà installé : `marimo_lens.agent.skill().body`
+dans le noyau, ou cette commande.
 
 ```
-uvx --with marimo-lens==0.2.4 agent-plugins read marimo-lens
+python -c "import marimo_lens.agent as a; print(a.skill().body)"
 ```
 
-Dans le noyau, `marimo_lens.agent.skill().body` donne le même texte. Pour une référence, lis par
+Si marimo-lens n'est pas installé, ajoute-le par uv, selon `mak contexte`. Ne le télécharge pas
+autrement. Pour une référence, lis par
 exemple `marimo_lens.agent.skill().file("references/targets.md").read_text(encoding="utf-8")`.
 Ces instructions couvrent trois tâches : ajouter Lens, faire une visite, traiter une sélection.
 

@@ -45,6 +45,12 @@ réglage ordinaire, `mo.ui` suffit et reste le premier choix.
 
 `references/catalogue.md` donne une ligne par classe.
 
+Huit widgets importent leur JavaScript depuis jsdelivr ou unpkg, dans le navigateur, à chaque
+affichage : `AltairWidget`, `EsmWidget`, `Excalidraw`, `FormulaAnimation`, `FormulaDAG`,
+`TangleLatex`, `ManimWeb` et `ObservablePlot`. Hors du mode public de `mak contexte`, ne les
+propose pas, car un poste d'entreprise les bloque ou lève une alerte. Prends `mo.ui.altair_chart`
+pour un graphique et `mo.md` avec `$$` pour une formule.
+
 ## 2. Brancher dans marimo
 
 ```python

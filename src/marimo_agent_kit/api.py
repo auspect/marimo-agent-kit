@@ -10,7 +10,7 @@ from pathlib import Path
 from .environnement import env_sobre
 
 SCRIPT = r'''
-import difflib, inspect, json, sys
+import difflib, inspect, json, re, sys
 import marimo
 
 demande = sys.argv[1].strip()
@@ -54,6 +54,17 @@ if mode == "chercher":
         if motif in nom.lower() or motif in ligne.lower():
             trouves.append({"nom": nom, "resume": ligne[:120]})
     resultat["trouves"] = trouves[:60]
+elif re.fullmatch(r"M[A-Z]\d{3}", demande.upper()):
+    from marimo._lint.rules import RULE_CODES
+    regle = RULE_CODES.get(demande.upper())
+    if regle is None:
+        resultat["introuvable"] = demande.upper()
+        resultat["proches"] = sorted(RULE_CODES)
+    else:
+        gravite = getattr(regle.severity, "value", regle.severity)
+        resultat["nom"] = f"{regle.code} {regle.name}"
+        resultat["genre"] = f"règle de marimo check, {gravite}"
+        resultat["doc"] = regle.description + "\n\n" + (inspect.getdoc(regle) or "")
 else:
     chemin = demande
     for prefixe in ("marimo.", "mo."):
@@ -113,7 +124,7 @@ def interroger(demande: str, mode: str = "decrire", depuis: Path | None = None) 
         return {"erreur": "aucun Python avec marimo, et uv est absent"}
     try:
         sortie = subprocess.run([*python, "-c", SCRIPT, demande, mode], capture_output=True, text=True,
-                                encoding="utf-8", errors="replace", timeout=120, env=env_sobre())
+                                encoding="utf-8", errors="replace", timeout=120, env=env_sobre(depuis))
     except (OSError, subprocess.SubprocessError) as erreur:
         return {"erreur": f"{type(erreur).__name__} : {erreur}"}
     try:
@@ -133,6 +144,8 @@ def en_texte(resultat: dict) -> str:
     if "introuvable" in resultat:
         proches = ", ".join(resultat["proches"]) or "aucun"
         return f"{tete} : `{resultat['introuvable']}` n'existe pas. Noms proches : {proches}."
+    if resultat["genre"].startswith("règle"):
+        return f"{resultat['nom']}, {resultat['genre']} de {tete}\n\n{resultat['doc']}"
     lignes = [f"{resultat['nom']}, {resultat['genre']} de {tete}"]
     if resultat.get("signature"):
         lignes.append(f"{resultat['nom']}{resultat['signature']}")

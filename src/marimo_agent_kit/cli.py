@@ -12,10 +12,28 @@ def _codes(texte: str | None) -> set[str] | None:
     return {c.strip() for c in texte.split(",") if c.strip()} if texte else None
 
 
+def lancer_marimo(arguments: list[str]) -> int:
+    import subprocess
+
+    from .environnement import charger
+    from .verifier import commande_marimo
+
+    notebook = next((Path(a) for a in arguments if a.endswith(".py")), None)
+    commande = commande_marimo(notebook)
+    if not commande:
+        print("marimo introuvable : ni dans le projet, ni dans ce Python, ni par uvx.", file=sys.stderr)
+        return 2
+    depuis = notebook.resolve().parent if notebook is not None else None
+    return subprocess.run([*commande, *arguments], env=charger(depuis).env).returncode
+
+
 def main(argv: list[str] | None = None) -> int:
     for flux in (sys.stdout, sys.stderr):
         if hasattr(flux, "reconfigure"):
             flux.reconfigure(encoding="utf-8", errors="replace")
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["marimo"]:
+        return lancer_marimo(argv[1:])
     parseur = argparse.ArgumentParser(prog="mak", description="Outils pour que les agents écrivent de bons notebooks marimo.")
     parseur.add_argument("--version", action="version", version=f"marimo-agent-kit {__version__}")
     sous = parseur.add_subparsers(dest="commande", required=True)
@@ -64,9 +82,18 @@ def main(argv: list[str] | None = None) -> int:
     p = sous.add_parser("confidentialite", help="ce qui sort du poste avec marimo et son assistant, et quoi régler")
     p.add_argument("--json", action="store_true")
 
+    p = sous.add_parser("contexte", help="le réseau du poste et les consignes qui en découlent, pour l'agent")
+    p.add_argument("--detail", action="store_true", help="fichiers lus, origine de chaque variable, dépôts trouvés")
+    p.add_argument("--depuis", type=Path, help="notebook ou dossier d'où chercher mak.env et la configuration de uv")
+
+    p = sous.add_parser("marimo", help="lancer marimo avec l'environnement du pack, ex. mak marimo edit notebook.py")
+    p.add_argument("arguments", nargs=argparse.REMAINDER)
+
     sous.add_parser("mcp", help="serveur MCP en entrée/sortie standard")
 
-    p = sous.add_parser("hook", help="hook après écriture pour Claude Code ou Copilot")
+    p = sous.add_parser("hook", help="hook pour Claude Code ou Copilot : relecture après écriture, contexte au démarrage")
+    p.add_argument("evenement", nargs="?", help="sessionStart pour donner le contexte du poste (Copilot) ; "
+                   "Claude Code envoie l'événement lui-même")
     p.add_argument("--executer", action="store_true", help="exécuter aussi les cellules (plus lent)")
 
     p = sous.add_parser("installer", help="poser le skill, la configuration de marimo, le hook ou le serveur MCP")
@@ -140,14 +167,22 @@ def main(argv: list[str] | None = None) -> int:
         print(widgets_en_texte(args.nom, args.chercher, not args.sans_installe))
         return 1 if args.nom and trouver(args.nom) is None else 0
 
+    if args.commande == "contexte":
+        from .environnement import charger, contexte_agent, detail_configuration
+
+        config = charger(args.depuis)
+        print(detail_configuration(config) if args.detail else contexte_agent(config))
+        return 1 if config.problemes else 0
+
     if args.commande == "confidentialite":
         import os
         from dataclasses import asdict
 
-        from .confidentialite import diagnostiquer, en_texte, infos_marimo
+        from .confidentialite import constats_reseau, diagnostiquer, en_texte, infos_marimo
+        from .environnement import charger
 
         infos = infos_marimo()
-        constats = diagnostiquer(os.environ, infos)
+        constats = diagnostiquer(os.environ, infos) + constats_reseau(charger())
         if args.json:
             print(json.dumps([asdict(c) for c in constats], ensure_ascii=False, indent=1))
         else:
@@ -163,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.commande == "hook":
         from .hook import principal
 
-        return principal(executer=args.executer)
+        return principal(executer=args.executer, evenement=args.evenement)
 
     if args.commande == "installer":
         from .installer import installer

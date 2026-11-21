@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import os
 import shlex
 import shutil
 import subprocess
@@ -13,7 +12,7 @@ from pathlib import Path
 from typing import Literal
 
 from .carnet import Carnet, lire_fichier
-from .environnement import env_sobre
+from .environnement import charger, env_sobre
 from .regles import GRAVITES, Diagnostic, appliquer
 
 MARGE_HORLOGE_S = 1
@@ -79,7 +78,7 @@ class Rapport:
 
 
 def commande_marimo(chemin: Path | None = None, imposee: str | None = None) -> list[str]:
-    imposee = imposee or os.environ.get("MAK_MARIMO")
+    imposee = imposee or env_sobre(chemin).get("MAK_MARIMO")
     if imposee:
         return shlex.split(imposee)
     if chemin is not None:
@@ -106,27 +105,39 @@ def _cellule_de_ligne(carnet: Carnet, ligne: int | None):
     return candidate
 
 
+def _expliquer(config, message: str) -> str:
+    if "network was disabled" not in message and "Python downloads are set to 'never'" not in message:
+        return message
+    return (f"uv est coupé du web (mode réseau {config.mode}) et un paquet ou un Python manque à son cache. "
+            f"Installe-le par le dépôt interne, ou donne la commande marimo par MAK_MARIMO. uv dit : {message[-300:]}")
+
+
 def lancer_marimo_check(carnet: Carnet, commande: list[str], delai: int = 120) -> tuple[Etape, list[Diagnostic]]:
     nom = "marimo check"
+    config = charger(carnet.chemin)
     if not commande:
         return Etape(nom, "échec", "marimo introuvable (ni dans le projet, ni dans ce Python, ni par uvx)"), []
     try:
         sortie = subprocess.run([*commande, "check", "--format", "json", str(carnet.chemin)],
                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=delai,
-                                env=env_sobre())
+                                env=config.env)
     except (OSError, subprocess.SubprocessError) as erreur:
         return Etape(nom, "échec", f"{type(erreur).__name__} : {erreur}"), []
     try:
         donnees = json.loads(sortie.stdout[sortie.stdout.index("{"):])
     except ValueError:
-        return Etape(nom, "échec", (sortie.stderr or sortie.stdout).strip()[-400:] or f"code {sortie.returncode}"), []
+        return Etape(nom, "échec", _expliquer(config, (sortie.stderr or sortie.stdout).strip()[-400:] or f"code {sortie.returncode}")), []
     diagnostics = []
     for probleme in donnees.get("issues", []):
         if probleme.get("type") != "diagnostic":
             continue
         cellule = _cellule_de_ligne(carnet, probleme.get("line"))
-        correction = "`marimo check --fix` le corrige." if probleme.get("fixable") else \
-            f"Voir https://docs.marimo.io/guides/lint_rules/rules/{probleme.get('name', '').replace('-', '_')}/"
+        if probleme.get("fixable"):
+            correction = "`marimo check --fix` le corrige."
+        elif config.mode == "public":
+            correction = f"Voir https://docs.marimo.io/guides/lint_rules/rules/{probleme.get('name', '').replace('-', '_')}/"
+        else:
+            correction = f"`mak api {probleme.get('code', '')}` décrit la règle, à partir du marimo installé."
         diagnostics.append(Diagnostic(
             code=probleme.get("code", "M?"), nom=probleme.get("name", ""),
             gravite=GRAVITE_MARIMO.get(probleme.get("severity", ""), "avertissement"),
@@ -142,22 +153,26 @@ def lancer_execution(carnet: Carnet, commande: list[str], delai: int = 300, bac_
     nom = "exécution (marimo export session)"
     if not commande:
         return Etape(nom, "échec", "marimo introuvable"), []
+    config = charger(chemin)
     options = ["--no-sandbox"]
     if bac_a_sable == "auto" and carnet.entete is not None and shutil.which("uv"):
         options = ["--sandbox=pixi"] if "[tool.pixi" in carnet.entete and shutil.which("pixi") else ["--sandbox=uv"]
     elif bac_a_sable in ("uv", "pixi"):
         options = [f"--sandbox={bac_a_sable}"]
+    permis, raison = config.pixi_permis()
+    if options == ["--sandbox=pixi"] and not permis:
+        return Etape(nom, "sauté", f"bac à sable pixi : {raison}. `MAK_RESEAU=public` le permet"), []
     instantane = chemin.parent / "__marimo__" / "session" / f"{chemin.name}.json"
     debut = time.time()
     try:
         sortie = subprocess.run([*commande, "export", "session", "--force-overwrite", *options, chemin.name],
                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=delai,
-                                cwd=chemin.parent, env=env_sobre())
+                                cwd=chemin.parent, env=config.env)
     except subprocess.TimeoutExpired:
         return Etape(nom, "échec", f"plus de {delai} s : une cellule attend peut-être une saisie, ou le calcul est trop long"), []
     except OSError as erreur:
         return Etape(nom, "échec", str(erreur)), []
-    echec = Etape(nom, "échec", (sortie.stderr or sortie.stdout).strip()[-600:] or "aucun instantané écrit")
+    echec = Etape(nom, "échec", _expliquer(config, (sortie.stderr or sortie.stdout).strip()[-600:] or "aucun instantané écrit"))
     if not instantane.exists() or instantane.stat().st_mtime < debut - MARGE_HORLOGE_S:
         return echec, []
     try:

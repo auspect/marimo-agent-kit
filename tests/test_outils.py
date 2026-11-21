@@ -190,6 +190,51 @@ class AvecMarimo(unittest.TestCase):
             os.chdir(ancien)
         self.assertEqual(propre.statut, "propre", propre.en_texte(conseils=True))
 
+    def test_regle_de_marimo_check_lue_sur_le_poste(self):
+        code, texte = lancer_cli("api", "MB002")
+        self.assertEqual(code, 0, texte)
+        self.assertIn("multiple-definitions", texte)
+
+    def test_lien_vers_le_web_seulement_en_mode_public(self):
+        from marimo_agent_kit.verifier import verifier
+
+        source = ("import marimo\n\napp = marimo.App()\n\n\n@app.cell\ndef _():\n    x = 1\n    return (x,)\n\n\n"
+                  "@app.cell\ndef _():\n    x = 2\n    return (x,)\n")
+        with tempfile.TemporaryDirectory() as dossier:
+            chemin = Path(dossier) / "double.py"
+            chemin.write_text(source, encoding="utf-8")
+            for mode, attendu in (("interne", "`mak api MB002`"), ("public", "https://docs.marimo.io/")):
+                with self.subTest(mode=mode), variables(MAK_RESEAU=mode):
+                    rapport = verifier(chemin, executer=False)
+                    double = next(d for d in rapport.diagnostics if d.code == "MB002")
+                    self.assertIn(attendu, double.correction)
+
+    def test_bac_a_sable_pixi_saute_hors_ligne(self):
+        from marimo_agent_kit.carnet import lire_fichier
+        from marimo_agent_kit.verifier import commande_marimo, lancer_execution
+
+        with variables(MAK_RESEAU="aucun"):
+            etape, diagnostics = lancer_execution(lire_fichier(PROPRE), commande_marimo(PROPRE), bac_a_sable="pixi")
+        self.assertEqual((etape.etat, diagnostics), ("sauté", []))
+        self.assertIn("pixi", etape.detail)
+
+
+class variables:
+    def __init__(self, **valeurs: str):
+        self.valeurs, self.anciennes = valeurs, {}
+
+    def __enter__(self):
+        for nom, valeur in self.valeurs.items():
+            self.anciennes[nom] = os.environ.get(nom)
+            os.environ[nom] = valeur
+
+    def __exit__(self, *_):
+        for nom, ancienne in self.anciennes.items():
+            if ancienne is None:
+                os.environ.pop(nom, None)
+            else:
+                os.environ[nom] = ancienne
+
 
 if __name__ == "__main__":
     unittest.main()

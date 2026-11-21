@@ -17,8 +17,15 @@ relance aucune cellule. Presque toutes les erreurs d'un agent viennent de ces qu
 `marimo check` n'en trouve qu'une petite partie. Ce skill ajoute un contrat d'écriture, des
 contrôles et la lecture de l'API installée.
 
-`mak` est la commande du paquet `marimo-agent-kit`. Sans installation, lance
-`uvx --from "git+https://github.com/auspect/marimo-agent-kit" mak ...`.
+`mak` est la commande du paquet `marimo-agent-kit`. Si elle manque, demande à l'utilisateur de
+l'installer. Ne la télécharge pas toi-même.
+
+## 0. Lire le réseau du poste
+
+Au début de la session, lance `mak contexte`, sauf si son texte, « Réseau du poste », est déjà
+dans ton contexte. Il dit d'où viennent les paquets, quel proxy sert, et ce qui t'est interdit.
+Par défaut, rien ne sort vers le web public : ni installation hors de uv ou pixi configurés, ni
+page de documentation, ni script. Si une ressource manque, dis-le à l'utilisateur.
 
 ## 1. Choisir où écrire
 
@@ -61,10 +68,12 @@ nommés.
 ```
 mak api mo.ui.table
 mak api --chercher cache
+mak api MB002
 ```
 
-La première commande affiche la signature, la documentation et les membres. La seconde liste les
-noms qui contiennent le mot, par exemple `mo.cache` et `mo.persistent_cache`. Les listes d'API des
+La première commande affiche la signature, la documentation et les membres. La deuxième liste les
+noms qui contiennent le mot, par exemple `mo.cache` et `mo.persistent_cache`. La troisième décrit
+une règle de `marimo check`, à partir du marimo installé. Les listes d'API des
 prompts vieillissent, et un paramètre inventé fait planter la cellule. Pour un symbole hors de
 marimo, applique le skill `notes-doc` s'il existe dans le projet.
 
@@ -99,5 +108,5 @@ insertion.
 ## Ce que ce skill ne refait pas
 
 Les skills officiels de marimo couvrent le format du fichier, les conversions depuis Jupyter ou
-Streamlit, WASM et anywidget. Installe-les par `npx skills add marimo-team/skills`. marimo pair
-couvre le travail dans le noyau. Ce skill s'ajoute à eux.
+Streamlit, WASM et anywidget. L'utilisateur les installe par `npx skills add marimo-team/skills`.
+marimo pair couvre le travail dans le noyau. Ce skill s'ajoute à eux.

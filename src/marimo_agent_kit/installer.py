@@ -114,11 +114,16 @@ def poser_hook_claude(dossier: Path, appliquer: bool, source: str | None = None)
     commande = " ".join([*commande_mak(source), "hook"])
 
     def modifier(donnees: dict) -> bool:
-        entrees = donnees.setdefault("hooks", {}).setdefault("PostToolUse", [])
-        if any(commande == h.get("command") for e in entrees for h in e.get("hooks", [])):
-            return False
-        entrees.append({"matcher": "Write|Edit|MultiEdit", "hooks": [{"type": "command", "command": commande, "timeout": 120}]})
-        return True
+        hooks = donnees.setdefault("hooks", {})
+        change = False
+        for evenement, matcher, delai in (("PostToolUse", "Write|Edit|MultiEdit", 120), ("SessionStart", "", 30)):
+            entrees = hooks.setdefault(evenement, [])
+            if any(commande == h.get("command") for e in entrees for h in e.get("hooks", [])):
+                continue
+            entree = {"hooks": [{"type": "command", "command": commande, "timeout": delai}]}
+            entrees.append({"matcher": matcher, **entree} if matcher else entree)
+            change = True
+        return change
 
     return [_fusionner_json(dossier / ".claude" / "settings.json", modifier, appliquer, dossier)]
 

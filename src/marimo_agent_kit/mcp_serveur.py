@@ -74,7 +74,8 @@ OUTILS = [
     },
     {
         "name": "regles_marimo",
-        "description": "Le contrat court pour écrire des cellules marimo justes et lisibles. À lire une fois par session.",
+        "description": "Le contrat court pour écrire des cellules marimo justes et lisibles, puis le réseau du poste : "
+                       "d'où viennent les paquets et ce qui est interdit. À lire une fois par session.",
         "inputSchema": {"type": "object", "properties": {}},
     },
 ]
@@ -104,7 +105,9 @@ def appeler(nom: str, arguments: dict) -> tuple[str, bool]:
 
         return widgets_en_texte(arguments.get("nom") or None, arguments.get("motif") or None), False
     if nom == "regles_marimo":
-        return contrat_court(), False
+        from .environnement import charger, contexte_agent
+
+        return contrat_court() + "\n" + contexte_agent(charger()), False
     return f"Outil inconnu : {nom}", True
 
 

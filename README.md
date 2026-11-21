@@ -7,7 +7,9 @@ Copilot, OpenCode, Codex et l'assistant intégré de marimo. Il contient ces él
 - l'API de marimo lue dans la version installée ;
 - trois skills, `marimo-agent-kit`, `wigglystuff` et `marimo-lens` ;
 - un rapport qui s'affiche dans le notebook lui-même ;
-- deux commandes pour brancher un LLM interne sans rien laisser sortir du poste.
+- deux commandes pour brancher un LLM interne sans rien laisser sortir du poste ;
+- un mode hors ligne par défaut : le kit ne contacte que les dépôts internes déclarés à uv ou
+  pixi, et un fichier `mak.env` porte le proxy, les certificats et les consignes du poste.
 
 La commande `mak` n'a pas de dépendance. Elle demande Python 3.10 ou plus, et marimo dans le
 projet ou par `uvx`.
@@ -50,9 +52,10 @@ avertissement. Il ne donne que des conseils de lisibilité.
 | `mak regles` | L'assistant de marimo, les agents | Affiche le contrat de quatorze règles que `[tool.marimo.ai] rules` transmet à l'assistant. |
 | `mak mcp` | L'assistant de marimo en modes Ask et Agent, Claude Code, Copilot | Sert six outils MCP. |
 | `skills/` | Les agents qui lisent des skills | Contient `marimo-agent-kit`, `wigglystuff` et `marimo-lens`. |
-| `mak hook` | Claude Code, Copilot | Vérifie chaque notebook que l'agent écrit. Une erreur bloque l'agent, un avertissement lui est signalé. |
+| `mak hook` | Claude Code, Copilot | Vérifie chaque notebook que l'agent écrit. Une erreur bloque l'agent, un avertissement lui est signalé. Au démarrage, donne le contexte réseau du poste. |
 | `mak.audit()` | Toi, dans le notebook | Affiche le rapport et le message à renvoyer à l'agent. |
 | `mak sonde-llm`, `mak confidentialite` | Toi, au travail | Testent ce qu'un LLM interne accepte, et ce qui sort du poste. |
+| `mak contexte`, `mak marimo` | Les agents, toi | Disent le réseau du poste et ses consignes, et lancent marimo avec l'environnement du pack. |
 
 Les six outils MCP sont `verifier_notebook`, `verifier_cellules`, `api_marimo`,
 `chercher_api_marimo`, `widgets_wigglystuff` et `regles_marimo`.
@@ -88,6 +91,19 @@ Pour l'utiliser sans l'installer, lance cette commande :
 uvx --from "git+https://github.com/auspect/marimo-agent-kit" mak verifier notebook.py
 ```
 
+Au travail, ces commandes vont sur GitHub. Construis plutôt la roue une fois, dépose-la sur le
+dépôt interne, puis installe-la depuis ce dépôt. Un fichier `src/marimo_agent_kit/mak.env` posé
+avant `uv build` voyage dans la roue et sert de configuration par défaut à tous les postes. La
+section [Hors ligne par défaut](#hors-ligne-par-défaut) décrit ce fichier.
+
+```bash
+uv build --wheel
+```
+
+```bash
+uv tool install marimo-agent-kit
+```
+
 Dans un projet, l'installateur affiche d'abord ce qu'il ferait :
 
 ```bash
@@ -106,7 +122,8 @@ Les options choisissent ce que l'installateur pose :
   `.claude/skills/` ou `.github/skills/`. `--seulement wigglystuff,marimo-lens` restreint la liste.
 - `--marimo` ajoute le contrat et le serveur MCP à `pyproject.toml`. Le serveur MCP de l'assistant
   demande `marimo[mcp]` dans l'environnement qui lance marimo.
-- `--hook-claude` ajoute le hook à `.claude/settings.json`.
+- `--hook-claude` ajoute deux hooks à `.claude/settings.json`. L'un relit chaque notebook écrit,
+  l'autre donne à l'agent le contexte réseau du poste au démarrage de la session.
 - `--mcp-claude` ajoute le serveur MCP à `.mcp.json`. Un serveur MCP lance du code chez toute
   personne qui ouvre le projet. Ne pose cette option qu'en connaissance de cause.
 
@@ -163,7 +180,7 @@ doc de marimo-lens 0.2.4. Le mode d'emploi pour agents reste celui du paquet, qu
 affiche :
 
 ```bash
-uvx --with marimo-lens==0.2.4 agent-plugins read marimo-lens
+python -c "import marimo_lens.agent as a; print(a.skill().body)"
 ```
 
 Les deux docs viennent du commit de la version publiée. La branche principale de chaque projet
@@ -208,6 +225,65 @@ Cette commande fait le bilan du poste et affiche les lignes à poser en PowerShe
 kit pose lui-même `MARIMO_SKIP_UPDATE_CHECK=1` et `PYDANTIC_AI_NO_BANNER=1` sur chaque marimo
 qu'il lance.
 
+### Hors ligne par défaut
+
+Au travail, un outil qui va sur le web déclenche des alertes de sécurité. Sans réglage, uv
+contacte pypi.org à chaque lancement, même quand tout est en cache, et télécharge un Python
+absent depuis github.com. Le kit ne contacte donc que les dépôts internes que uv ou pixi
+déclarent déjà, par `uv.toml`, `UV_DEFAULT_INDEX` ou la configuration de pixi. La variable
+`MAK_RESEAU` choisit le mode.
+
+| Mode | Ce que font les outils du kit |
+|---|---|
+| `interne`, le défaut | uv passe par le dépôt interne déclaré. Sans dépôt interne, ou avec un dépôt public en plus, uv ne lit que son cache. uv ne télécharge un Python que depuis un miroir interne. Le bac à sable pixi ne sert que si pixi a un miroir interne. |
+| `aucun` | Aucun accès réseau. uv ne lit que son cache et pixi ne sert pas. |
+| `public` | uv et pixi gardent leur comportement par défaut, pypi.org compris. |
+
+Un faux proxy qui note chaque hôte a servi de mesure. `mak verifier tests/exemples/propre.py`,
+avec son bac à sable uv, ne contacte aucun hôte en modes `interne` et `aucun`. Avec un dépôt
+Artifactory déclaré, il ne contacte que lui. En mode `public`, il contacte pypi.org.
+
+Le fichier `mak.env` porte le reste : le proxy, l'autorité de certification, les variables propres
+au pack et des consignes pour l'agent. Il contient une variable par ligne, au format `NOM=valeur`.
+
+```bash
+MAK_RESEAU=interne
+HTTPS_PROXY=http://proxy.entreprise.local:8080
+NO_PROXY=localhost,127.0.0.1,.entreprise.local
+SSL_CERT_FILE=C:\certs\ca-entreprise.pem
+UV_SYSTEM_CERTS=1
+MAK_CONTEXTE=Les données de production restent sur le partage réseau. Ne les copie pas.
+```
+
+Le kit lit jusqu'à quatre fichiers. Le dernier l'emporte :
+
+1. le `mak.env` livré dans le paquet, pour une roue construite par l'entreprise ;
+2. `~/.config/marimo-agent-kit/mak.env`, ou `%APPDATA%\marimo-agent-kit\mak.env` sous Windows ;
+3. le `mak.env` le plus proche du notebook ;
+4. le fichier que nomme `MAK_CONFIG`.
+
+Une variable déjà posée dans le shell garde sa valeur. Chaque ligne `MAK_CONTEXTE` ajoute une
+consigne. Les variables vont à tout ce que le kit lance : `marimo check`, l'exécution, `mak api`,
+la sonde LLM et `mak marimo`. Le kit masque l'identifiant et le mot de passe d'une adresse de
+proxy dans ce qu'il affiche, mais le fichier reste en clair. N'y mets pas de mot de passe.
+
+L'agent reçoit le contexte réseau de trois façons. Le hook de démarrage de Claude Code le lui
+donne, l'outil MCP `regles_marimo` le rend avec le contrat, et le skill lui demande de lancer
+`mak contexte`. Ce contexte lui interdit `pip install`, les options `--index-url`, les sources
+`git+https` et la documentation en ligne. Il le renvoie vers `mak api`, `mak widgets` et les
+références des skills. `mak contexte --detail` te montre d'où vient chaque réglage.
+
+```bash
+mak contexte --detail
+```
+
+`mak marimo` lance marimo avec le même environnement. L'assistant de marimo passe alors par le
+proxy, et l'installation d'un paquet manquant suit le mode réseau.
+
+```bash
+mak marimo edit notebook.py
+```
+
 ## Limites
 
 - Les règles lisent la syntaxe, pas les types. `df.sort(...)` seul dans une cellule reçoit un
@@ -216,6 +292,12 @@ qu'il lance.
   notebooks de cours. C'est un conseil à lire, pas une correction à appliquer partout.
 - L'exécution écrit `__marimo__/session/<notebook>.json` à côté du notebook. Le dossier
   `__marimo__/` est d'ordinaire ignoré par git.
+- Les commandes que l'agent lance lui-même ne passent pas par le kit. Le contexte réseau lui dit
+  d'ajouter `--offline` à uv, mais rien ne l'y oblige.
+- La détection des miroirs de pixi lit sa configuration sans lancer pixi, absent des essais. Elle
+  n'est pas vérifiée sur un vrai poste.
+- Huit widgets wigglystuff chargent du JavaScript depuis un CDN dans le navigateur. Le skill
+  `wigglystuff` les écarte hors du mode public, mais le kit ne le contrôle pas.
 - Le kit vise marimo 0.25.2, wigglystuff 0.6.0 et marimo-lens 0.2.4. `marimo._code_mode` et les
   outils de l'assistant changent d'une version à l'autre.
 

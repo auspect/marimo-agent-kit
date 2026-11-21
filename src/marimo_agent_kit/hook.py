@@ -4,6 +4,9 @@ Claude Code envoie `tool_name` et `tool_input` à un hook `PostToolUse`. Copilot
 et `toolArgs`. Pour Claude Code, le code 2 rend la sortie d'erreur à l'agent, le code 0 laisse
 passer, et `hookSpecificOutput.additionalContext` ajoute du contexte. Copilot lit
 `additionalContext` à la racine de la réponse.
+
+Au démarrage, Claude Code envoie `hook_event_name: "SessionStart"` et Copilot appelle
+`mak hook sessionStart`. Le hook rend alors le contexte réseau du poste.
 """
 
 from __future__ import annotations
@@ -39,13 +42,30 @@ def chemin_ecrit(donnees: dict) -> tuple[str, Path | None]:
     return origine, chemin
 
 
-def principal(entree=None, executer: bool = False) -> int:
+def debut_de_session(donnees: dict, origine: str) -> int:
+    from .environnement import charger, contexte_agent
+
+    depuis = Path(donnees["cwd"]) if isinstance(donnees.get("cwd"), str) else None
+    texte = contexte_agent(charger(depuis))
+    if origine == "claude":
+        sortie = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": texte}}
+    else:
+        sortie = {"additionalContext": texte}
+    print(json.dumps(sortie, ensure_ascii=False))
+    return 0
+
+
+def principal(entree=None, executer: bool = False, evenement: str | None = None) -> int:
     try:
         donnees = json.loads((entree or sys.stdin).read() or "{}")
     except ValueError:
-        return 0
+        donnees = {}
     if not isinstance(donnees, dict):
-        return 0
+        donnees = {}
+    if donnees.get("hook_event_name") == "SessionStart":
+        return debut_de_session(donnees, "claude")
+    if (evenement or "").lower() == "sessionstart":
+        return debut_de_session(donnees, "copilot")
     origine, chemin = chemin_ecrit(donnees)
     if chemin is None or chemin.suffix != ".py" or not chemin.exists():
         return 0

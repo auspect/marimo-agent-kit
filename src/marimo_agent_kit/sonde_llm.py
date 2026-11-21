@@ -34,12 +34,12 @@ class Essai:
     detail: str
 
 
-def _envoyer(url: str, corps: dict, entetes: dict[str, str], contexte: ssl.SSLContext | None, delai: int
+def _envoyer(url: str, corps: dict, entetes: dict[str, str], ouvreur: urllib.request.OpenerDirector, delai: int
              ) -> tuple[int, str]:
     requete = urllib.request.Request(url, data=json.dumps(corps).encode(), method="POST",
                                      headers={"Content-Type": "application/json", **entetes})
     try:
-        with urllib.request.urlopen(requete, timeout=delai, context=contexte) as reponse:
+        with ouvreur.open(requete, timeout=delai) as reponse:
             return reponse.status, reponse.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as erreur:
         return erreur.code, erreur.read().decode("utf-8", errors="replace")
@@ -83,17 +83,22 @@ def sonder(base_url: str, modele: str, cle: str = "inutilise", entetes: dict[str
            ca: str | None = None, verifier_tls: bool = True, delai: int = 60) -> list[Essai]:
     url = base_url.rstrip("/") + "/chat/completions"
     tous_entetes = {"Authorization": f"Bearer {cle}", "api-key": cle, **(entetes or {})}
+    from .environnement import charger
+
+    config = charger()
+    ca = ca or config.fichier_ca()
     contexte = None
     if not verifier_tls:
         contexte = ssl._create_unverified_context()
     elif ca:
         contexte = ssl.create_default_context(cafile=ca)
+    ouvreur = config.ouvreur(url, contexte)
     systeme = {"role": "system", "content": "Tu aides à écrire des notebooks marimo. Réponds en une phrase."}
     essais: list[Essai] = []
 
     def envoyer(corps: dict) -> tuple[int, str]:
         try:
-            return _envoyer(url, {"model": modele, **corps}, tous_entetes, contexte, delai)
+            return _envoyer(url, {"model": modele, **corps}, tous_entetes, ouvreur, delai)
         except (urllib.error.URLError, OSError, TimeoutError) as erreur:
             return 0, f"connexion impossible : {getattr(erreur, 'reason', erreur)}"
 
