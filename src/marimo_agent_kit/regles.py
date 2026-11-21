@@ -586,15 +586,38 @@ def _normaliser(nom: str) -> str:
     return re.sub(r"[-_.]+", "-", nom).lower()
 
 
+def _lire_entete_sans_tomllib(entete: str) -> dict | None:
+    """Python 3.10 n'a pas `tomllib` : on lit seulement ce dont AG111 a besoin."""
+    liste = re.search(r"^dependencies\s*=\s*(\[.*?\])", entete, re.M | re.S)
+    try:
+        dependances = ast.literal_eval(liste.group(1)) if liste else []
+    except (ValueError, SyntaxError):
+        return None
+    pixi: dict[str, dict[str, str]] = {}
+    table = None
+    for ligne in entete.splitlines():
+        entete_table = re.match(r"^\[tool\.pixi\.(dependencies|pypi-dependencies)\]\s*$", ligne)
+        if entete_table:
+            table = pixi.setdefault(entete_table.group(1), {})
+        elif ligne.startswith("["):
+            table = None
+        elif table is not None and (cle := re.match(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*=", ligne)):
+            table[cle.group(1)] = ""
+    return {"dependencies": dependances, "tool": {"pixi": pixi}}
+
+
 def dependances_declarees(entete: str) -> set[str] | None:
     try:
         import tomllib
-    except ModuleNotFoundError:  # Python 3.10
-        return None
-    try:
-        donnees = tomllib.loads(entete)
-    except tomllib.TOMLDecodeError:
-        return None
+    except ModuleNotFoundError:
+        donnees = _lire_entete_sans_tomllib(entete)
+        if donnees is None:
+            return None
+    else:
+        try:
+            donnees = tomllib.loads(entete)
+        except tomllib.TOMLDecodeError:
+            return None
     noms = set()
     for exigence in donnees.get("dependencies", []):
         trouve = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", exigence)

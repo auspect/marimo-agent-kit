@@ -118,6 +118,15 @@ class Avertissements(unittest.TestCase):
         trouves = [d for d in appliquer(lire_source(source)) if d.code == "AG111"]
         self.assertEqual([d.message.split("`")[1] for d in trouves], ["sklearn"])
 
+    def test_entete_lu_sans_tomllib(self):
+        from marimo_agent_kit.regles import _lire_entete_sans_tomllib, dependances_declarees
+
+        entete = 'requires-python = ">=3.12"\ndependencies = [\n  "marimo",\n  "scikit-learn>=1.5",\n]\n\n[tool.pixi.dependencies]\nffmpeg = "*"\n'
+        lu = _lire_entete_sans_tomllib(entete)
+        self.assertEqual(lu["dependencies"], ["marimo", "scikit-learn>=1.5"])
+        self.assertEqual(sorted(lu["tool"]["pixi"]["dependencies"]), ["ffmpeg"])
+        self.assertEqual(dependances_declarees(entete), {"marimo", "scikit-learn", "ffmpeg"})
+
 
 class Conseils(unittest.TestCase):
     def test_conseils_principaux(self):
