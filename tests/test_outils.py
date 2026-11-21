@@ -81,8 +81,8 @@ class LigneDeCommande(unittest.TestCase):
                                  entree=json.dumps(["ventes['c'] = 1", "total = inconnu + 1"]))
         self.assertEqual(code, 1)
         trouves = {(d["code"], d["cellule"]) for d in json.loads(texte)["diagnostics"]}
-        self.assertIn(("AG101", 0), trouves)
-        self.assertIn(("AG007", 1), trouves)
+        self.assertIn(("AG101", 1), trouves)
+        self.assertIn(("AG007", 2), trouves)
 
     def test_cellule_en_texte_sans_notebook(self):
         code, texte = lancer_cli("cellules", "--texte", entree="x = 1\nreturn (x,)")

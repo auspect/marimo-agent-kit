@@ -10,7 +10,7 @@
 7. Écris `await` directement dans la cellule, jamais `asyncio.run`. N'utilise ni `display()`, ni `!pip`, ni `%magic`, qui viennent de Jupyter.
 
 ## Lisibilité
-8. Une cellule porte une idée. Place le calcul coûteux en amont et la présentation en aval. Regroupe les imports en tête.
+8. Une cellule porte une idée. Place le calcul coûteux en amont et la présentation en aval. Mets les imports dans la cellule setup, que marimo exécute avant toutes les autres. Dans le fichier, elle s'écrit `with app.setup:`, juste après `app = marimo.App()`. N'y mets que des imports : si elle définit aussi des valeurs, la modifier relance tout le notebook.
 9. Une courte cellule Markdown annonce chaque étape et dit pourquoi elle compte. Une conclusion cite des valeurs interpolées.
 10. Chaque contrôle a un `label`. Groupe les contrôles d'un même réglage au-dessus de ce qu'ils pilotent.
 11. Un calcul lourd lié à un curseur passe par `.form()`, par un `run_button` ou par `@mo.cache`.

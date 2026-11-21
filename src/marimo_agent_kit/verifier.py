@@ -131,7 +131,7 @@ def lancer_marimo_check(carnet: Carnet, commande: list[str], delai: int = 120) -
             code=probleme.get("code", "M?"), nom=probleme.get("name", ""),
             gravite=GRAVITE_MARIMO.get(probleme.get("severity", ""), "avertissement"),
             message=probleme.get("message", ""), correction=correction,
-            cellule=cellule.index if cellule else None, etiquette=cellule.etiquette if cellule else "notebook",
+            cellule=cellule.numero if cellule else None, etiquette=cellule.etiquette if cellule else "notebook",
             ligne=probleme.get("line"), source="marimo check"))
     return Etape(nom, "fait", nombre(len(diagnostics), "problème")), diagnostics
 
@@ -166,8 +166,13 @@ def lancer_execution(carnet: Carnet, commande: list[str], delai: int = 300, bac_
         return echec, []
     cellules = session.get("cells", [])
     alignees = len(cellules) == len(carnet.cellules)
-    diagnostics, bloquees = [], 0
+    diagnostics, bloquees, rang = [], 0, 0
     for index, cellule_session in enumerate(cellules):
+        if cellule_session.get("id") == "setup":
+            numero = 0
+        else:
+            rang += 1
+            numero = rang
         for sortie_cellule in cellule_session.get("outputs", []):
             if sortie_cellule.get("type") != "error":
                 continue
@@ -179,7 +184,7 @@ def lancer_execution(carnet: Carnet, commande: list[str], delai: int = 300, bac_
             diagnostics.append(Diagnostic(
                 code="EXEC", nom="execution", gravite="erreur", message=valeur or sortie_cellule.get("ename", "erreur"),
                 correction="Corrige la cause dans cette cellule. Les cellules qui en dépendent repartiront.",
-                cellule=cellule.index if cellule else index, etiquette=cellule.etiquette if cellule else f"cellule {index + 1}",
+                cellule=numero, etiquette=cellule.etiquette if cellule else f"cellule {numero}",
                 ligne=cellule.ligne if cellule else None, source="exécution"))
     detail = f"{nombre(len(cellules), 'cellule')}, {len(diagnostics)} en erreur"
     if bloquees:

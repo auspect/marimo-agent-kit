@@ -94,7 +94,7 @@ class Contexte:
         self.lectures_ailleurs: dict[int, set[str]] = {}
         for cellule in carnet.cellules:
             autres = set().union(*(c.lectures for c in carnet.cellules if c is not cellule)) if len(carnet.cellules) > 1 else set()
-            self.lectures_ailleurs[cellule.index] = autres
+            self.lectures_ailleurs[cellule.numero] = autres
 
     def parent(self, noeud: ast.AST) -> ast.AST | None:
         return self.parents.get(id(noeud))
@@ -459,7 +459,7 @@ def _garde_if(carnet: Carnet, ctx: Contexte):
     from .carnet import definitions_de
 
     for cellule in cellules_de_code(carnet):
-        lus_ailleurs = ctx.lectures_ailleurs.get(cellule.index, set())
+        lus_ailleurs = ctx.lectures_ailleurs.get(cellule.numero, set())
         for instruction in cellule.instructions:
             if not isinstance(instruction, ast.If):
                 continue
@@ -735,9 +735,9 @@ def _entete(carnet: Carnet, ctx: Contexte):
 @regle("AG206", "imports-disperses", "conseil",
        "Répartir les imports dans trois cellules ou plus.",
        "Le lecteur cherche d'où vient un nom. Deux cellules qui importent le même module sous le même nom font échouer le notebook.",
-       "Regroupe les imports dans la première cellule, ou dans `with app.setup:`. Cette cellule `setup` ne dépend d'aucune autre.")
+       "Regroupe les imports dans la cellule setup, `with app.setup:`, que marimo exécute avant toutes les autres. N'y mets que des imports.")
 def _imports(carnet: Carnet, ctx: Contexte):
-    avec = [c for c in cellules_de_code(carnet) if c.genre == "cell" and c.index > 0
+    avec = [c for c in cellules_de_code(carnet) if c.genre == "cell" and c.numero > 1
             and any(isinstance(i, (ast.Import, ast.ImportFrom)) for i in c.instructions)]
     if len(avec) >= 3:
         yield avec[0], None, f"Imports dans {len(avec)} cellules, dont " + ", ".join(c.etiquette for c in avec[:4]) + "."
@@ -827,13 +827,13 @@ def appliquer(carnet: Carnet, selection: set[str] | None = None, ignorer: set[st
                 ligne = cellule.ligne if carnet.mode == "fichier" else 1
             resultat.append(Diagnostic(
                 code=code, nom=r.nom, gravite=r.gravite, message=message, correction=r.correction,
-                cellule=cellule.index if cellule is not None else None,
+                cellule=cellule.numero if cellule is not None else None,
                 etiquette=cellule.etiquette if cellule is not None else "notebook", ligne=ligne))
     for cellule in carnet.cellules:
         if cellule.erreur_syntaxe:
             resultat.append(Diagnostic(code="AG000", nom="syntaxe", gravite="erreur",
                                        message=f"Le code ne se lit pas. {cellule.erreur_syntaxe}.",
-                                       correction="Corrige la syntaxe avant tout le reste.", cellule=cellule.index,
+                                       correction="Corrige la syntaxe avant tout le reste.", cellule=cellule.numero,
                                        etiquette=cellule.etiquette, ligne=cellule.ligne))
     ordre = {g: i for i, g in enumerate(GRAVITES)}
     resultat.sort(key=lambda d: (ordre[d.gravite], d.cellule if d.cellule is not None else -1, d.ligne or 0, d.code))

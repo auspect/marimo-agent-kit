@@ -18,10 +18,11 @@ def verifier_cellules(cellules: list[str], notebook: Path | None = None, selecti
         carnet = lire_corps(cellules, noms=[f"proposée {i + 1}" for i in range(len(cellules))], complet=False)
         depart = 0
         contexte = "sans le notebook, donc sans juger les noms inconnus"
-    proposees = set(range(depart, depart + len(cellules)))
-    diagnostics = [d for d in appliquer(carnet, selection, ignorer) if d.cellule in proposees]
+    rangs = {cellule.numero: rang for rang, cellule in enumerate(carnet.cellules[depart:], 1)}
+    diagnostics = [d for d in appliquer(carnet, selection, ignorer) if d.cellule in rangs]
     for d in diagnostics:
-        d.cellule = d.cellule - depart
+        d.cellule = rangs[d.cellule]
+        d.etiquette = f"cellule proposée {d.cellule}"
     rapport = Rapport(chemin=f"{nombre(len(cellules), 'cellule')} {'proposées' if len(cellules) > 1 else 'proposée'}", diagnostics=diagnostics)
     rapport.etapes = [
         Etape("règles marimo-agent-kit", "fait", contexte),

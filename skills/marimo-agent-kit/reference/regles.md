@@ -218,7 +218,7 @@ Répartir les imports dans trois cellules ou plus.
 
 **Pourquoi.** Le lecteur cherche d'où vient un nom. Deux cellules qui importent le même module sous le même nom font échouer le notebook.
 
-**Correction.** Regroupe les imports dans la première cellule, ou dans `with app.setup:`. Cette cellule `setup` ne dépend d'aucune autre.
+**Correction.** Regroupe les imports dans la cellule setup, `with app.setup:`, que marimo exécute avant toutes les autres. N'y mets que des imports.
 
 ## AG207 `cellule-longue`, conseil
 

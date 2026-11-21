@@ -34,6 +34,9 @@ version installée. Lis-le d'abord. Ce fichier ajoute ce que le kit contrôle.
 - Montre le code. `create_cell` replie le code par défaut avec `hide_code=True`. L'utilisateur lit
   le code à côté de ses sorties. Passe donc `hide_code=False`, sauf pour une cellule qui ne
   contient que du Markdown.
+- Mets les imports dans la cellule setup. `ctx.create_cell(code, name="setup")` la crée et la place
+  en tête. Si elle existe déjà, cet appel lève `ValueError` : modifie-la alors par
+  `ctx.edit_cell("setup", code=...)`. `marimo pair docs notebook-improvements` donne le détail.
 - Crée une cellule Markdown d'une ou deux phrases avant chaque étape. Elle dit ce que l'étape
   montre.
 - Installe un paquet par `ctx.packages.add("paquet")`, jamais par `uv add` ou `pip`. Demande avant

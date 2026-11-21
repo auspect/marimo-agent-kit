@@ -13,7 +13,7 @@ ENTETE_PEP723 = re.compile(r"(?m)^# /// script\s*$(?P<corps>(?:\n#.*)*?)\n# ///\
 
 @dataclass
 class Cellule:
-    index: int
+    numero: int
     genre: Literal["cell", "function", "class", "setup"]
     instructions: list[ast.stmt]
     code: str
@@ -29,8 +29,8 @@ class Cellule:
     @property
     def etiquette(self) -> str:
         if self.nom and self.nom != "_":
-            return f'cellule {self.index + 1} "{self.nom}"'
-        return f"cellule {self.index + 1}"
+            return f'cellule {self.numero} "{self.nom}"'
+        return f"cellule {self.numero}"
 
 
 @dataclass
@@ -161,6 +161,10 @@ def lire_entete(source: str) -> str | None:
     return "\n".join(ligne[2:] if ligne.startswith("# ") else ligne[1:] for ligne in trouve.group("corps").splitlines() if ligne)
 
 
+def _numero_suivant(cellules: list[Cellule]) -> int:
+    return sum(cellule.genre != "setup" for cellule in cellules) + 1
+
+
 def lire_source(source: str, chemin: Path | None = None) -> Carnet:
     arbre = ast.parse(source)
     lignes = source.splitlines()
@@ -174,22 +178,22 @@ def lire_source(source: str, chemin: Path | None = None) -> Carnet:
                 if retour:
                     corps = corps[:-1]
                 code = _segment(lignes, corps[0].lineno, corps[-1].end_lineno or corps[-1].lineno) if corps else ""
-                cellule = Cellule(index=len(cellules), genre="cell", instructions=corps, code=code, nom=noeud.name,
+                cellule = Cellule(numero=_numero_suivant(cellules), genre="cell", instructions=corps, code=code, nom=noeud.name,
                                   ligne=noeud.lineno, hide_code=any(_hide_code(d) for d in decos))
             elif any(_est_decorateur_app(d, "function") for d in decos):
                 fin = noeud.end_lineno or noeud.lineno
-                cellule = Cellule(index=len(cellules), genre="function", instructions=[_sans_app(noeud)], nom=noeud.name,
+                cellule = Cellule(numero=_numero_suivant(cellules), genre="function", instructions=[_sans_app(noeud)], nom=noeud.name,
                                   code=_segment(lignes, noeud.lineno, fin), ligne=noeud.lineno)
             else:
                 continue
         elif isinstance(noeud, ast.ClassDef) and any(_est_decorateur_app(d, "class_definition") for d in noeud.decorator_list):
-            cellule = Cellule(index=len(cellules), genre="class", instructions=[_sans_app(noeud)], nom=noeud.name,
+            cellule = Cellule(numero=_numero_suivant(cellules), genre="class", instructions=[_sans_app(noeud)], nom=noeud.name,
                               code=_segment(lignes, noeud.lineno, noeud.end_lineno or noeud.lineno), ligne=noeud.lineno)
-        elif isinstance(noeud, ast.With) and any(
-            isinstance(item.context_expr, ast.Attribute) and item.context_expr.attr == "setup" for item in noeud.items
-        ):
+        elif isinstance(noeud, (ast.With, ast.AsyncWith)) and len(noeud.items) == 1 \
+                and _est_decorateur_app(noeud.items[0].context_expr, "setup"):
             corps = list(noeud.body)
-            cellule = Cellule(index=len(cellules), genre="setup", instructions=corps, nom="setup", ligne=noeud.lineno,
+            cellule = Cellule(numero=0, genre="setup", instructions=corps, nom="setup", ligne=noeud.lineno,
+                              hide_code=_hide_code(noeud.items[0].context_expr),
                               code=_segment(lignes, corps[0].lineno, corps[-1].end_lineno or corps[-1].lineno) if corps else "")
         else:
             continue
@@ -217,7 +221,7 @@ def lire_corps(codes: list[str], noms: list[str | None] | None = None, complet: 
             arbre, erreur = ast.parse(textwrap.dedent(code)), None
         except SyntaxError as exc:
             arbre, erreur = ast.Module(body=[], type_ignores=[]), f"{exc.msg} (ligne {exc.lineno})"
-        cellule = Cellule(index=index, genre="cell", instructions=list(arbre.body), code=code, nom=nom)
+        cellule = Cellule(numero=index + 1, genre="cell", instructions=list(arbre.body), code=code, nom=nom)
         cellule.retour_au_premier_niveau = any(isinstance(n, ast.Return) for n in arbre.body)
         cellule.definitions, cellule.lectures, cellule.imports, erreur_analyse = analyser(cellule.instructions)
         cellule.erreur_syntaxe = erreur or erreur_analyse
@@ -227,9 +231,9 @@ def lire_corps(codes: list[str], noms: list[str | None] | None = None, complet: 
 
 def joindre(carnet: Carnet, nouvelles: list[str]) -> Carnet:
     proposees = lire_corps(nouvelles)
-    depart = len(carnet.cellules)
+    depart = _numero_suivant(carnet.cellules)
     for decalage, cellule in enumerate(proposees.cellules):
-        cellule.index = depart + decalage
+        cellule.numero = depart + decalage
         cellule.nom = cellule.nom or f"proposée {decalage + 1}"
     return Carnet(cellules=[*carnet.cellules, *proposees.cellules], chemin=carnet.chemin, source=carnet.source,
                   entete=carnet.entete, mode="corps", complet=carnet.complet)

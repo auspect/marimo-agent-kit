@@ -128,6 +128,11 @@ echo '["df[\"c\"] = 1"]' | mak cellules --notebook notebook.py
 `mak verifier` rend 0 sans erreur et 1 sinon. Le rapport dit quelles étapes ont tourné. Une étape
 sautée ne compte pas comme une vérification.
 
+Le rapport numérote les cellules dans l'ordre du fichier. La cellule setup, `with app.setup:`,
+porte le numéro 0, et les autres cellules partent de 1. Le champ `cellule` du JSON et le texte
+« cellule 2 » donnent le même numéro. `mak cellules` numérote les cellules proposées de 1 à n,
+dans l'ordre de la liste.
+
 Pour voir le rapport dans le notebook, ajoute cette cellule. Le kit doit être dans
 l'environnement du notebook, par exemple avec
 `uvx --with "git+https://github.com/auspect/marimo-agent-kit" marimo edit notebook.py`.

@@ -162,8 +162,23 @@ class Moteur(unittest.TestCase):
         carnet = lire_source(fichier(["import marimo as mo\nimport polars as pl", "df = pl.DataFrame({'a': [1]})"]))
         joint = joindre(carnet, ["df['b'] = 1", "y = inconnu"])
         trouves = {(d.code, d.cellule) for d in appliquer(joint)}
-        self.assertIn(("AG101", 2), trouves)
-        self.assertIn(("AG007", 3), trouves)
+        self.assertIn(("AG101", 3), trouves)
+        self.assertIn(("AG007", 4), trouves)
+
+    def test_cellule_setup_numerotee_zero(self):
+        for ouverture in ("with app.setup:", "with app.setup(hide_code=True):"):
+            with self.subTest(ouverture=ouverture):
+                source = (f"{ENTETE}import marimo\n\napp = marimo.App()\n\n{ouverture}\n"
+                          "    import marimo as mo\n    import polars as pl\n\n\n"
+                          "@app.cell\ndef _():\n    df = pl.DataFrame({'a': [1]})\n    return (df,)\n\n\n"
+                          "@app.cell\ndef _(df):\n    df['b'] = 2\n    return\n")
+                carnet = lire_source(source)
+                self.assertEqual([(c.genre, c.numero) for c in carnet.cellules], [("setup", 0), ("cell", 1), ("cell", 2)])
+                self.assertEqual(carnet.cellules[0].hide_code, "hide_code" in ouverture)
+                diagnostics = appliquer(carnet)
+                self.assertNotIn("AG007", [d.code for d in diagnostics])
+                mutation = next(d for d in diagnostics if d.code == "AG101")
+                self.assertEqual((mutation.cellule, mutation.etiquette), (2, "cellule 2"))
 
     def test_exemple_mauvais_et_exemple_propre(self):
         mauvais = {d.code for d in appliquer(lire_fichier(ICI / "exemples" / "mauvais.py"))}
