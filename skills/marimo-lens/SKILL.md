@@ -1,6 +1,13 @@
 ---
 name: marimo-lens
-description: Savoir quand marimo-lens aide et le mettre en place, avec sa documentation 0.2.4 sans réseau. Lens sert quand un analyste montre une barre, une ligne ou une zone d'un résultat et demande une explication ou une modification, et pour une visite guidée d'un notebook. Pour le travail lui-même, le skill renvoie au mode d'emploi livré dans le paquet. À utiliser quand une tâche cite Lens, une sélection, "ce point-là", "cette barre" ou une visite guidée appelée Trail, ou demande de rendre une sortie ou un widget sélectionnable. Use for: marimo lens, visual selection, point at output, guided tour, selectable widgets.
+description: >-
+  Savoir quand marimo-lens aide et le mettre en place, avec sa documentation 0.2.4 sans réseau.
+  Lens sert quand un analyste montre une barre, une ligne ou une zone d'un résultat et demande une
+  explication ou une modification, et pour une visite guidée d'un notebook. Pour le travail
+  lui-même, le skill renvoie au mode d'emploi livré dans le paquet. À utiliser quand une tâche
+  cite Lens, une sélection, "ce point-là", "cette barre" ou une visite guidée appelée Trail, ou
+  demande de rendre une sortie ou un widget sélectionnable. Use for: marimo lens, visual
+  selection, point at output, guided tour, selectable widgets.
 ---
 
 # marimo-lens, pour montrer du doigt un résultat

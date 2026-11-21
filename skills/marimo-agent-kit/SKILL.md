@@ -1,6 +1,12 @@
 ---
 name: marimo-agent-kit
-description: Écrire, modifier ou relire un notebook marimo sans les erreurs habituelles des agents, et le rendre lisible pour un humain. Le skill choisit entre le noyau ouvert, par marimo pair, et le fichier. Il applique un contrat d'écriture, vérifie chaque changement par `mak verifier` et lit l'API installée par `mak api`. À utiliser dès qu'une tâche touche un fichier marimo (`@app.cell`, `marimo.App`, `mo.ui`, `mo.md`), un notebook ouvert dans marimo, ou l'assistant intégré de marimo. Use for: marimo notebook, reactive cells, mo.ui, marimo pair, marimo check.
+description: >-
+  Écrire, modifier ou relire un notebook marimo sans les erreurs habituelles des agents, et le
+  rendre lisible pour un humain. Le skill choisit entre le noyau ouvert, par marimo pair, et le
+  fichier. Il applique un contrat d'écriture, vérifie chaque changement par `mak verifier` et lit
+  l'API installée par `mak api`. À utiliser dès qu'une tâche touche un fichier marimo
+  (`@app.cell`, `marimo.App`, `mo.ui`, `mo.md`), un notebook ouvert dans marimo, ou l'assistant
+  intégré de marimo. Use for: marimo notebook, reactive cells, mo.ui, marimo pair, marimo check.
 ---
 
 # Écrire des notebooks marimo justes et lisibles

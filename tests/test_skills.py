@@ -19,10 +19,11 @@ class Skills(unittest.TestCase):
         for nom in SKILLS:
             with self.subTest(skill=nom):
                 texte = (dossier_skill(nom) / "SKILL.md").read_text(encoding="utf-8")
-                entete = re.match(r"---\nname: (.+)\ndescription: (.+)\n---\n", texte)
-                self.assertIsNotNone(entete, "en-tête name/description manquant")
+                entete = re.match(r"---\nname: (.+)\ndescription: >-\n((?:  .+\n)+)---\n", texte)
+                self.assertIsNotNone(entete, "en-tête name, puis description en bloc replié `>-`, attendu")
                 self.assertEqual(entete.group(1), nom)
-                self.assertLessEqual(len(entete.group(2)), 1024, "description trop longue pour les agents")
+                description = " ".join(ligne.strip() for ligne in entete.group(2).splitlines())
+                self.assertLessEqual(len(description), 1024, "description trop longue pour les agents")
                 self.assertLess(len(texte.splitlines()), 200, "un SKILL.md se lit d'un coup : le détail va dans references/")
 
     def test_les_chemins_cites_existent(self):

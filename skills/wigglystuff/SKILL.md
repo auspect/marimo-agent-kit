@@ -1,6 +1,14 @@
 ---
 name: wigglystuff
-description: Choisir et utiliser un widget wigglystuff dans un notebook marimo, par exemple Slider2D, TangleDistribution, ChartPuck, PairPlot, StateViewer, FitProgress, TraceView, Paint ou FloatingPanel. Le skill embarque la documentation de la version 0.6.0 sans réseau, avec les pages, les signatures, les traitlets et les démos. À utiliser quand une interaction dépasse mo.ui, comme régler deux paramètres d'un geste, glisser un nombre dans une phrase, sélectionner sur un graphique matplotlib, dessiner, suivre un algorithme ou suivre un entraînement. À utiliser aussi quand une tâche cite wigglystuff, anywidget ou un de ses widgets. Use for: wigglystuff widgets, anywidget in marimo, interactive explanations, choosing a widget.
+description: >-
+  Choisir et utiliser un widget wigglystuff dans un notebook marimo, par exemple Slider2D,
+  TangleDistribution, ChartPuck, PairPlot, StateViewer, FitProgress, TraceView, Paint ou
+  FloatingPanel. Le skill embarque la documentation de la version 0.6.0 sans réseau, avec les
+  pages, les signatures, les traitlets et les démos. À utiliser quand une interaction dépasse
+  mo.ui, comme régler deux paramètres d'un geste, glisser un nombre dans une phrase, sélectionner
+  sur un graphique matplotlib, dessiner, suivre un algorithme ou suivre un entraînement. À
+  utiliser aussi quand une tâche cite wigglystuff, anywidget ou un de ses widgets. Use for:
+  wigglystuff widgets, anywidget in marimo, interactive explanations, choosing a widget.
 ---
 
 # Widgets wigglystuff dans marimo
