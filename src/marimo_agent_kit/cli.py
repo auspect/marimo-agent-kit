@@ -27,6 +27,22 @@ def lancer_marimo(arguments: list[str]) -> int:
     return subprocess.run([*commande, *arguments], env=charger(depuis).env).returncode
 
 
+def lancer(arguments: list[str]) -> int:
+    import subprocess
+
+    from .environnement import charger
+
+    arguments = arguments[1:] if arguments[:1] == ["--"] else arguments
+    if not arguments:
+        print("Usage : mak lancer -- commande [arguments]", file=sys.stderr)
+        return 2
+    try:
+        return subprocess.run(arguments, env=charger().env).returncode
+    except OSError as erreur:
+        print(f"Impossible de lancer {arguments[0]} : {erreur}", file=sys.stderr)
+        return 2
+
+
 def main(argv: list[str] | None = None) -> int:
     for flux in (sys.stdout, sys.stderr):
         if hasattr(flux, "reconfigure"):
@@ -34,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["marimo"]:
         return lancer_marimo(argv[1:])
+    if argv[:1] == ["lancer"]:
+        return lancer(argv[1:])
     parseur = argparse.ArgumentParser(prog="mak", description="Outils pour que les agents écrivent de bons notebooks marimo.")
     parseur.add_argument("--version", action="version", version=f"marimo-agent-kit {__version__}")
     sous = parseur.add_subparsers(dest="commande", required=True)
@@ -87,6 +105,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--depuis", type=Path, help="notebook ou dossier d'où chercher mak.env et la configuration de uv")
 
     p = sous.add_parser("marimo", help="lancer marimo avec l'environnement du pack, ex. mak marimo edit notebook.py")
+    p.add_argument("arguments", nargs=argparse.REMAINDER)
+
+    p = sous.add_parser("lancer", help="lancer une commande avec l'environnement du pack, ex. mak lancer -- safeagents …")
     p.add_argument("arguments", nargs=argparse.REMAINDER)
 
     p = sous.add_parser("garde", help="la garde avant outil : bilan de ce qu'elle a noté, ou essai d'une commande")
@@ -183,11 +204,12 @@ def main(argv: list[str] | None = None) -> int:
         import os
         from dataclasses import asdict
 
-        from .confidentialite import constats_reseau, diagnostiquer, en_texte, infos_marimo
+        from .confidentialite import constats_reseau, constats_safeagents, diagnostiquer, en_texte, infos_marimo
         from .environnement import charger
 
         infos = infos_marimo()
-        constats = diagnostiquer(os.environ, infos) + constats_reseau(charger())
+        config = charger()
+        constats = diagnostiquer(os.environ, infos) + constats_reseau(config) + constats_safeagents(config, infos)
         if args.json:
             print(json.dumps([asdict(c) for c in constats], ensure_ascii=False, indent=1))
         else:

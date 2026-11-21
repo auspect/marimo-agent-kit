@@ -132,7 +132,7 @@ def bilan(config: Configuration) -> str:
     for regle in sorted({e["regle"] for e in entrees}):
         siennes = [e for e in entrees if e["regle"] == regle]
         refusees = sum(e["decision"] == "refusé" for e in siennes)
-        lignes.append(f"{regle} : {len(siennes)} fois, dont {refusees} refusées")
+        lignes.append(f"{regle} : {len(siennes)} fois, dont {refusees} {'refusées' if refusees > 1 else 'refusée'}")
         lignes += [f"  {e['date']}  {e['outil']}  {e['extrait']}" for e in siennes[-3:]]
     lignes += ["", "Si chaque ligne est un vrai écart, passe en `agir` : MAK_GARDE=agir dans mak.env."]
     return "\n".join(lignes)

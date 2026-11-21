@@ -61,6 +61,7 @@ seul avertissement. C'est un `AG304` sur un tableau HTML assemblé à partir de 
 | `mak sonde-llm`, `mak confidentialite` | Toi, au travail | Testent ce qu'un LLM interne accepte, et ce qui sort du poste. |
 | `mak contexte`, `mak marimo` | Les agents, toi | Disent le réseau du poste et ses consignes, et lancent marimo avec l'environnement du pack. |
 | `mak garde` | Toi | Fait le bilan de la garde avant outil, ou juge une commande à l'essai. |
+| `mak lancer -- commande` | Toi | Lance un outil, par exemple safeagents, avec le proxy et les certificats du pack. |
 
 Les six outils MCP sont `verifier_notebook`, `verifier_cellules`, `api_marimo`,
 `chercher_api_marimo`, `widgets_wigglystuff` et `regles_marimo`.
@@ -316,6 +317,37 @@ ligne est un vrai écart, passe en `agir`.
 mak garde bilan
 mak garde essai "uv pip install --index-url https://pypi.org/simple polars"
 ```
+
+### Inspecter les appels d'outils de l'assistant avec safeagents (option)
+
+safeagents, de Hugging Face, est un proxy entre l'assistant et l'API du modèle. Il juge chaque
+appel d'outil avant qu'il tourne. Le mode Agent de l'assistant de marimo peut exécuter du Python
+sur le poste : safeagents se place donc entre lui et le LLM interne. Le projet en est à la version
+0.0, sans version publiée. Garde-le en option, jamais en réglage par défaut.
+
+1. Construis la roue d'un commit que tu as relu, sur un poste qui a le droit d'aller sur GitHub.
+   Dépose-la sur le dépôt interne, puis installe-la depuis lui par `uv tool install safeagents`.
+   Le 15 novembre 2026, le commit `a8ee22d` a été essayé sous Windows avec un faux modèle.
+2. Lance-le avec l'environnement du pack, pour qu'il passe par le proxy et lise l'autorité de
+   certification. Garde son journal hors du dépôt, car il contient les arguments des appels.
+   N'active aucun greffon `hf://`, car un greffon s'exécute dans le proxy.
+
+   ```bash
+   mak lancer -- safeagents https://llm.entreprise.local 8790 --journal ~/journaux/safeagents.jsonl
+   ```
+
+3. Fais pointer le fournisseur personnalisé de marimo sur `http://127.0.0.1:8790/v1`, et garde
+   `127.0.0.1` dans `NO_PROXY`. Déclare `MAK_SAFEAGENTS=http://127.0.0.1:8790` dans `mak.env`.
+   `mak confidentialite` signale alors chaque fournisseur qui ne passe pas par safeagents.
+4. Vérifie la chaîne : les quatre essais doivent passer à travers safeagents.
+
+   ```bash
+   mak sonde-llm http://127.0.0.1:8790/v1 mon-modele --cle-env LLM_INTERNE_CLE
+   ```
+
+Sans modèle juge, safeagents laisse passer les constats de gravité moyenne. Il ne voit ni les
+modèles servis par Copilot, ni les API Responses d'OpenAI et Gemini. La forme exacte de l'adresse
+amont, avec ou sans `/v1`, n'a pas été vérifiée : la sonde le dira.
 
 ## Limites
 

@@ -115,6 +115,27 @@ class HookAvantOutil(Poste):
                          (0, ""))
 
 
+class Safeagents(Poste):
+    def test_fournisseurs_compares_a_safeagents(self):
+        from marimo_agent_kit.confidentialite import constats_safeagents
+
+        infos = {"fournisseurs": {"custom_providers.interne": "http://localhost:8790/v1",
+                                  "custom_providers.direct": "https://llm.exemple.interne/v1"}}
+        etats = {c.detail.split(" ")[0]: c.etat for c in constats_safeagents(
+            self.config(MAK_SAFEAGENTS="http://127.0.0.1:8790"), infos)}
+        self.assertEqual(etats, {"custom_providers.interne": "ok", "custom_providers.direct": "attention"})
+        self.assertEqual([c.etat for c in constats_safeagents(self.config(), infos)], ["info"])
+        self.assertEqual(constats_safeagents(self.config(), {"fournisseurs": {}}), [])
+
+    def test_lancer_donne_l_environnement_du_pack(self):
+        from marimo_agent_kit import cli
+
+        sortie = self.racine / "env.txt"
+        code = cli.main(["lancer", "--", sys.executable, "-c",
+                         f"import os, pathlib; pathlib.Path({str(sortie)!r}).write_text(os.environ['MARIMO_SKIP_UPDATE_CHECK'])"])
+        self.assertEqual((code, sortie.read_text()), (0, "1"))
+
+
 class ReglesDeSecurite(unittest.TestCase):
     def codes(self, *cellules: str) -> list[tuple[str, int]]:
         return [(d.code, d.ligne) for d in appliquer(lire_corps([IMPORTS, *cellules]), selection={"AG3"})]

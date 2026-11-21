@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import urllib.parse
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal
@@ -23,6 +24,11 @@ try:
     r["presets_mcp"] = list(c.get("mcp", {}).get("presets", []))
     r["serveurs_mcp"] = sorted(c.get("mcp", {}).get("mcpServers", {}))
     r["copilot"] = c.get("completion", {}).get("copilot")
+    ai = c.get("ai", {})
+    r["fournisseurs"] = {f"custom_providers.{n}": p.get("base_url") for n, p in ai.get("custom_providers", {}).items()}
+    for nom in ("open_ai_compatible", "open_ai"):
+        if ai.get(nom, {}).get("base_url"):
+            r["fournisseurs"][nom] = ai[nom]["base_url"]
 except Exception as e:
     r["erreur"] = f"{type(e).__name__}: {e}"
 print(json.dumps(r))
@@ -128,6 +134,30 @@ def constats_reseau(config: Configuration) -> list[Constat]:
     constats += [Constat("à régler", "configuration du kit", p) for p in config.problemes]
     constats.append(Constat("info", "éditeur marimo", "lancé à la main, marimo ne voit pas mak.env : "
                                                       "`mak marimo edit notebook.py` le lance avec"))
+    return constats
+
+
+def _origine(url: str) -> tuple[str, str, int | None]:
+    morceaux = urllib.parse.urlsplit(url)
+    hote = (morceaux.hostname or "").lower()
+    return morceaux.scheme, "127.0.0.1" if hote in ("localhost", "::1") else hote, morceaux.port
+
+
+def constats_safeagents(config: Configuration, infos: dict | None) -> list[Constat]:
+    fournisseurs = {nom: url for nom, url in ((infos or {}).get("fournisseurs") or {}).items() if url}
+    if not fournisseurs:
+        return []
+    safeagents = config.env.get("MAK_SAFEAGENTS", "")
+    if not safeagents:
+        return [Constat("info", "appels d'outils de l'assistant",
+                        "aucun fournisseur ne passe par safeagents (option : MAK_SAFEAGENTS, voir le README)")]
+    constats = []
+    for nom, url in sorted(fournisseurs.items()):
+        if _origine(url) == _origine(safeagents):
+            constats.append(Constat("ok", "appels d'outils de l'assistant", f"{nom} passe par safeagents ({masquer(url)})"))
+        else:
+            constats.append(Constat("attention", "appels d'outils de l'assistant",
+                                    f"{nom} va directement à {masquer(url)}, pas par safeagents ({safeagents})"))
     return constats
 
 

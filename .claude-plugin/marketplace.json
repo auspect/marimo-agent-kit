@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Écrire, vérifier et rendre lisibles des notebooks marimo avec un agent, avec les widgets wigglystuff et marimo-lens.",
-    "version": "0.4.0"
+    "version": "0.5.0"
   },
   "plugins": [
     {
