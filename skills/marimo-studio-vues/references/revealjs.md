@@ -41,7 +41,7 @@ diapositive par cellule. Remplace cette liste par une argumentation.
   changer de diapositive quand le lecteur manipule un contrôle.
 - Garde `useSettledLayout()` du starter : il recentre le deck quand Studio émet
   `marimo-studio:idle`.
-- `reveal.js/reveal.css` ne donne que la structure. Pose toi-même la police des titres
+- `reveal.js/reveal.css` ne donne que la structure. Pose la police des titres
   (`font-family` sur `.reveal h1, .reveal h2`) et le fond (`.reveal-viewport`) : les variables
   `--r-heading-font` restent sans effet sans thème Reveal.
 

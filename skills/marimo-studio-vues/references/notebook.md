@@ -70,9 +70,11 @@ l'exécution des cellules : construire la vue ne relance pas le notebook.
 ## Vérifier le notebook
 
 ```bash
-mak verifier notebook.py --marimo "pixi run marimo" --bac-a-sable non
+mak verifier notebook.py
 ```
 
-`--marimo "pixi run marimo"` exécute les cellules dans l'environnement pixi, qui a toutes les
-dépendances. `--bac-a-sable non` évite que le kit monte un bac à sable uv pour l'en-tête PEP 723
-que Studio a écrit. Sur l'exemple, le rapport dit `propre. 0 erreur, 0 avertissement`.
+Le kit trouve l'environnement pixi du projet et y exécute les cellules. Le notebook n'a pas
+d'en-tête PEP 723, puisque `pyproject.toml` porte la configuration de Studio
+(`references/environnement.md`) : rien ne pousse le kit vers un bac à sable uv. Si un notebook
+garde un en-tête, ajoute `--bac-a-sable non` pour rester dans l'environnement pixi. Sur
+l'exemple, le rapport dit `propre. 0 erreur, 0 avertissement`.

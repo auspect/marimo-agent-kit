@@ -18,7 +18,7 @@ Chaque vue a son `DESIGN.md`. Les données sont dans `public/`, leur source dans
 ```bash
 pixi install
 pixi run marimo-studio starters --target meteo.py
-pixi run marimo edit meteo.py --no-sandbox --watch --no-token --headless --port 2791
+mak marimo edit meteo.py --watch --no-token --headless --port 2791
 ```
 
 Ouvre ensuite `http://localhost:2791/` dans un navigateur. Pour construire et vérifier sans
@@ -36,7 +36,9 @@ pixi run marimo-studio view export grand-public --target meteo.py --output "$HOM
 pixi run python diapos_pptx.py
 ```
 
-Le `pixi.toml` installe Python 3.13, Quarto et Typst depuis conda-forge, et marimo-studio avec
-ses extras `deno` et `typst` depuis PyPI. Sous Windows, il pose deux variables qui contournent la
-limite de 260 caractères des chemins. Le skill explique pourquoi, dans
+Le `pyproject.toml` est un projet pixi. Il installe Python 3.13, Quarto et Typst depuis
+conda-forge, et marimo-studio avec ses extras `deno` et `typst` depuis PyPI. Il dit aussi à
+marimo d'installer un paquet manquant par pixi, et porte la configuration de Studio : le notebook
+n'a pas d'en-tête PEP 723. Sous Windows, il pose deux variables qui contournent la limite de 260
+caractères des chemins. Le skill explique pourquoi, dans
 `skills/marimo-studio-vues/references/environnement.md`.

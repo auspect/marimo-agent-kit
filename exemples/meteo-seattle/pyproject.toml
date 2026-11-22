@@ -1,23 +1,37 @@
-[workspace]
+[project]
 name = "meteo-seattle"
+version = "0.1.0"
 description = "Un notebook marimo et ses vues Studio : React, reveal.js, Typst et Quarto."
+requires-python = "==3.13.*"
+dependencies = [
+  "marimo-studio[deno,typst]==0.4.1",
+  "polars>=1.33",
+  "altair>=5.5",
+  "vl-convert-python>=1.8",
+]
+
+[tool.pixi.workspace]
 channels = ["conda-forge"]
 platforms = ["win-64", "linux-64", "osx-arm64"]
 
-[dependencies]
+[tool.pixi.dependencies]
 python = "3.13.*"
 quarto = ">=1.9.38"
 typst = ">=0.15"
 
-[pypi-dependencies]
-marimo-studio = { version = "==0.4.1", extras = ["deno", "typst"] }
-polars = ">=1.33"
-altair = ">=5.5"
-vl-convert-python = ">=1.8"
-
 # Sous Windows sans chemins longs, l'état de construction de Studio et les états
 # préparés des exports dépassent 260 caractères : le premier va dans un dossier
 # court, les seconds passent par le préfixe de chemin étendu \\?\.
-[target.win-64.activation.env]
+[tool.pixi.target.win-64.activation.env]
 MARIMO_STUDIO_STATE_DIR = '%USERPROFILE%\.mss'
 MARIMO_EXPORT_REPOSITORY = '\\?\%USERPROFILE%\.mxr'
+
+[tool.marimo.package_management]
+manager = "pixi"
+
+[tool.marimo-studio]
+notebook = "meteo.py"
+default = "grand-public"
+runtime = "server"
+runtimes = ["server", "zero-python"]
+show_cell_logs = false

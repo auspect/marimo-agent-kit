@@ -231,8 +231,9 @@ uvx --with marimo-studio agent-plugins read marimo-studio
 ```
 
 L'exemple `exemples/meteo-seattle/` sert de référence : un notebook sur la pluie à Seattle et ses
-quatre vues, avec un `pixi.toml` qui installe Quarto et Typst depuis conda-forge. Sous Windows, il
-contourne la limite de 260 caractères des chemins, que Studio dépasse sans réglage.
+quatre vues. Son `pyproject.toml` est un projet pixi, comme le kit le conseille : il installe
+Quarto et Typst depuis conda-forge, et porte la configuration de marimo et de Studio. Sous
+Windows, il contourne la limite de 260 caractères des chemins, que Studio dépasse sans réglage.
 
 ### Brancher un LLM interne dans l'assistant de marimo
 

@@ -1,19 +1,3 @@
-# /// script
-# requires-python = ">=3.12,<3.15"
-# dependencies = [
-#     "altair>=5.5",
-#     "marimo-studio[deno,typst]==0.4.1",
-#     "polars>=1.33",
-#     "vl-convert-python>=1.8"
-# ]
-#
-# [tool.marimo-studio]
-# default = "grand-public"
-# runtime = "server"
-# runtimes = ["server", "zero-python"]
-# show_cell_logs = false
-# ///
-
 import marimo
 
 __generated_with = "0.25.2"

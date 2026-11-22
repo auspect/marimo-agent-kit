@@ -60,17 +60,20 @@ Quatre vues pour quatre publics valent mieux que quatre fois la même page.
 - deux versions d'un graphique Altair : `width="container"` pour l'écran, une largeur fixe pour
   le PDF, sinon le rapport Typst grossit le texte du graphique.
 
-Vérifie le notebook avant toute vue, avec le skill `marimo-agent-kit` :
-`mak verifier notebook.py --marimo "pixi run marimo" --bac-a-sable non`.
+Vérifie le notebook avant toute vue, avec le skill `marimo-agent-kit` : `mak verifier notebook.py`.
 
 ## 3. Installer l'environnement
 
-`references/environnement.md` donne la recette pixi essayée, avec Quarto et Typst depuis
-conda-forge, et les réglages indispensables sous Windows : sans eux, les constructions React et
-Quarto et l'export Prepared échouent sur la limite de 260 caractères des chemins.
+pixi gère le projet, comme partout dans le kit, au format `pyproject.toml`. Ce fichier porte
+l'environnement, `[tool.marimo.package_management] manager = "pixi"` et `[tool.marimo-studio]` ;
+le notebook n'a pas d'en-tête PEP 723. `references/environnement.md` donne le fichier essayé, avec
+Quarto et Typst depuis conda-forge, et les réglages indispensables sous Windows : sans eux, les
+constructions React et Quarto et l'export Prepared échouent sur la limite de 260 caractères des
+chemins.
 
 ```bash
 pixi install
+pixi run marimo-studio status --target notebook.py
 pixi run marimo-studio starters --target notebook.py
 ```
 
@@ -106,7 +109,7 @@ Une recette par format, chacune tirée de l'exemple :
 Lance le notebook avec Studio, puis travaille dans le noyau par `marimo pair` :
 
 ```bash
-pixi run marimo edit notebook.py --no-sandbox --watch --no-token --headless --port 2791
+mak marimo edit notebook.py --watch --no-token --headless --port 2791
 pixi run marimo pair notebook list
 pixi run marimo pair execute --url http://localhost:2791 --session <SESSION_ID> --code-file etape.py
 ```
@@ -161,6 +164,6 @@ d'erreur ; chaque export ouvert et regardé.
 ## 9. L'exemple complet
 
 Le dépôt marimo-agent-kit contient `exemples/meteo-seattle/` : un notebook sur la pluie à Seattle
-et quatre vues, React, reveal.js, Typst et Quarto, avec leurs `DESIGN.md`, le `pixi.toml` et le
+et quatre vues, React, reveal.js, Typst et Quarto, avec leurs `DESIGN.md`, le `pyproject.toml` et le
 script PPTX. Copie ses motifs plutôt que de repartir des starters. Son `README.md` donne les
 commandes, dans l'ordre.

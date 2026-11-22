@@ -53,4 +53,4 @@ compris. Un graphique à largeur fixe est rogné à 390 pixels : l'exemple l'a c
 Quarto de conda-forge (1.11.9 ici) marche par `pixi run`, qui active l'environnement. Sous
 Windows, la construction échoue sur `unable to open database file` quand le chemin de l'état de
 construction est trop long : voir `references/environnement.md`. Ajoute à la vue un `.gitignore`
-pour `.quarto/`, `*_files/` et `index.html` si tu lances Quarto toi-même dans ce dossier.
+pour `.quarto/`, `*_files/` et `index.html` si Quarto est lancé à la main dans ce dossier.

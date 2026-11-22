@@ -106,8 +106,17 @@ class StudioVues(unittest.TestCase):
     def test_une_seule_version_de_studio(self):
         version = self.version()
         self.assertIn(f"marimo-studio {version}", (self.SKILL / "SKILL.md").read_text(encoding="utf-8"))
-        self.assertIn(f'version = "=={version}"', (self.EXEMPLE / "pixi.toml").read_text(encoding="utf-8"))
-        self.assertIn(f'"marimo-studio[deno,typst]=={version}"', (self.EXEMPLE / "meteo.py").read_text(encoding="utf-8"))
+        self.assertIn(f'"marimo-studio[deno,typst]=={version}"', (self.EXEMPLE / "pyproject.toml").read_text(encoding="utf-8"))
+
+    def test_exemple_est_un_projet_pixi_comme_le_kit_le_conseille(self):
+        import tomllib
+
+        projet = tomllib.loads((self.EXEMPLE / "pyproject.toml").read_text(encoding="utf-8"))
+        self.assertIn("workspace", projet["tool"]["pixi"])
+        self.assertEqual(projet["tool"]["marimo"]["package_management"]["manager"], "pixi")
+        self.assertEqual(projet["tool"]["marimo-studio"]["notebook"], "meteo.py")
+        self.assertFalse((self.EXEMPLE / "pixi.toml").exists())
+        self.assertNotIn("# /// script", (self.EXEMPLE / "meteo.py").read_text(encoding="utf-8"))
 
     def test_exemple_a_quatre_vues_de_formats_differents(self):
         vues = {p.parent.name: p.read_text(encoding="utf-8") for p in (self.EXEMPLE / "studio" / "meteo").glob("*/view.toml")}
