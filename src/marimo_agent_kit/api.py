@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from .environnement import env_sobre
+from .environnement import env_sobre, lanceur
 
 SCRIPT = r'''
 import difflib, inspect, json, re, sys
@@ -106,11 +106,8 @@ print(json.dumps(resultat, ensure_ascii=False))
 
 
 def python_avec_marimo(depuis: Path | None = None) -> list[str] | None:
-    depart = (depuis or Path.cwd()).resolve()
-    for dossier in [depart, *depart.parents]:
-        for candidat in (dossier / ".venv" / "bin" / "python", dossier / ".venv" / "Scripts" / "python.exe"):
-            if candidat.exists() and (candidat.parent / ("marimo.exe" if candidat.suffix else "marimo")).exists():
-                return [str(candidat)]
+    if projet := lanceur("python", depuis):
+        return projet
     if importlib.util.find_spec("marimo") is not None:
         return [sys.executable]
     if shutil.which("uv"):

@@ -142,6 +142,28 @@ class Installateur(unittest.TestCase):
                 marimo = tomllib.loads((dossier / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["marimo"]
                 self.assertEqual(marimo["ai"]["rules"], contrat_court())
                 self.assertEqual(marimo["mcp"]["mcpServers"]["marimo_agent_kit"]["args"], ["--from", "/kit", "mak", "mcp"])
+                self.assertEqual(marimo["package_management"]["manager"], "pixi")
+
+    def test_gestionnaire_du_bouton_d_installation(self):
+        cas = {"[tool.pixi.workspace]\nchannels = ['conda-forge']\n": "pixi", "[tool.uv]\npackage = false\n": "uv",
+               "": "pixi"}
+        for section, attendu in cas.items():
+            with self.subTest(attendu=attendu, section=section), tempfile.TemporaryDirectory() as dossier:
+                pyproject = Path(dossier) / "pyproject.toml"
+                pyproject.write_text(f'[project]\nname = "x"\nversion = "0"\n\n{section}', encoding="utf-8")
+                installer(Path(dossier), None, True, None, False, appliquer=True, source="/kit")
+                self.assertIn('[tool.marimo.package_management]\n# Le bouton', pyproject.read_text(encoding="utf-8"))
+                self.assertIn(f'manager = "{attendu}"', pyproject.read_text(encoding="utf-8"))
+
+    def test_un_projet_d_une_version_precedente_recoit_le_gestionnaire(self):
+        with tempfile.TemporaryDirectory() as dossier:
+            pyproject = Path(dossier) / "pyproject.toml"
+            ancien = ('[project]\nname = "x"\n\n[tool.marimo.mcp.mcpServers.marimo_agent_kit]\ncommand = "mak"\n'
+                      'args = ["mcp"]\n')
+            pyproject.write_text(ancien, encoding="utf-8")
+            self.assertEqual(installer(Path(dossier), None, True, None, False, appliquer=True)[0].etat, "créé")
+            self.assertEqual(pyproject.read_text(encoding="utf-8").count("[tool.marimo"), 2)
+            self.assertEqual(installer(Path(dossier), None, True, None, False, appliquer=True)[0].etat, "déjà là")
 
     def test_une_section_marimo_existante_n_est_pas_touchee(self):
         with tempfile.TemporaryDirectory() as dossier:
@@ -195,7 +217,7 @@ class AvecMarimo(unittest.TestCase):
         self.assertEqual(code, 0, texte)
         self.assertIn("multiple-definitions", texte)
 
-    def test_lien_vers_le_web_seulement_en_mode_public(self):
+    def test_regle_de_marimo_check_renvoie_a_la_doc_installee(self):
         from marimo_agent_kit.verifier import verifier
 
         source = ("import marimo\n\napp = marimo.App()\n\n\n@app.cell\ndef _():\n    x = 1\n    return (x,)\n\n\n"
@@ -203,37 +225,8 @@ class AvecMarimo(unittest.TestCase):
         with tempfile.TemporaryDirectory() as dossier:
             chemin = Path(dossier) / "double.py"
             chemin.write_text(source, encoding="utf-8")
-            for mode, attendu in (("interne", "`mak api MB002`"), ("public", "https://docs.marimo.io/")):
-                with self.subTest(mode=mode), variables(MAK_RESEAU=mode):
-                    rapport = verifier(chemin, executer=False)
-                    double = next(d for d in rapport.diagnostics if d.code == "MB002")
-                    self.assertIn(attendu, double.correction)
-
-    def test_bac_a_sable_pixi_saute_hors_ligne(self):
-        from marimo_agent_kit.carnet import lire_fichier
-        from marimo_agent_kit.verifier import commande_marimo, lancer_execution
-
-        with variables(MAK_RESEAU="aucun"):
-            etape, diagnostics = lancer_execution(lire_fichier(PROPRE), commande_marimo(PROPRE), bac_a_sable="pixi")
-        self.assertEqual((etape.etat, diagnostics), ("sauté", []))
-        self.assertIn("pixi", etape.detail)
-
-
-class variables:
-    def __init__(self, **valeurs: str):
-        self.valeurs, self.anciennes = valeurs, {}
-
-    def __enter__(self):
-        for nom, valeur in self.valeurs.items():
-            self.anciennes[nom] = os.environ.get(nom)
-            os.environ[nom] = valeur
-
-    def __exit__(self, *_):
-        for nom, ancienne in self.anciennes.items():
-            if ancienne is None:
-                os.environ.pop(nom, None)
-            else:
-                os.environ[nom] = ancienne
+            double = next(d for d in verifier(chemin, executer=False).diagnostics if d.code == "MB002")
+            self.assertIn("`mak api MB002`", double.correction)
 
 
 if __name__ == "__main__":

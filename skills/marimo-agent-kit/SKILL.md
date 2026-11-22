@@ -18,15 +18,16 @@ relance aucune cellule. Presque toutes les erreurs d'un agent viennent de ces qu
 contrôles et la lecture de l'API installée.
 
 `mak` est la commande du paquet `marimo-agent-kit`. Si elle manque, demande à l'utilisateur de
-l'installer. Ne la télécharge pas toi-même.
+l'installer. Ne la télécharge pas.
 
-## 0. Lire le réseau du poste
+## 0. Lire les paquets du projet
 
-Au début de la session, lance `mak contexte`, sauf si son texte, « Réseau du poste », est déjà
-dans ton contexte. Il dit d'où viennent les paquets, quel proxy sert, et ce qui t'est interdit.
-Par défaut, rien ne sort vers le web public : ni installation hors de uv ou pixi configurés, ni
-page de documentation, ni script. Si une ressource manque, dis-le à l'utilisateur. Une garde du kit
-note, ou refuse selon son réglage, les commandes qui sortent de ce cadre.
+Au début de la session, lance `mak contexte`, sauf si son texte, « Paquets du projet », est déjà
+dans ton contexte. Il dit quel gestionnaire installe les paquets, pixi par défaut, quel proxy
+sert, et les consignes du projet. Un paquet s'installe par ce gestionnaire, par exemple
+`pixi add polars`, jamais par `pip install` ni avec une option d'index : la configuration de pixi
+choisit les dépôts. Si un paquet ne s'installe pas, dis-le à l'utilisateur. Une garde du kit note,
+ou refuse selon son réglage, les commandes qui contournent le gestionnaire.
 
 ## 1. Choisir où écrire
 

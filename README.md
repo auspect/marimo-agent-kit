@@ -8,11 +8,12 @@ Copilot, OpenCode, Codex et l'assistant intégré de marimo. Il contient ces él
 - trois skills, `marimo-agent-kit`, `wigglystuff` et `marimo-lens` ;
 - un rapport qui s'affiche dans le notebook lui-même ;
 - deux commandes pour brancher un LLM interne sans rien laisser sortir du poste ;
-- un mode hors ligne par défaut : le kit ne contacte que les dépôts internes déclarés à uv ou
-  pixi, et un fichier `mak.env` porte le proxy, les certificats et les consignes du poste.
+- pixi comme gestionnaire de paquets par défaut : le bouton d'installation de l'éditeur ajoute
+  le paquet manquant au projet, et un fichier `mak.env` porte le proxy, les certificats et les
+  consignes pour l'agent.
 
-La commande `mak` n'a pas de dépendance. Elle demande Python 3.10 ou plus, et marimo dans le
-projet ou par `uvx`.
+La commande `mak` n'a pas de dépendance. Elle demande Python 3.10 ou plus, et marimo dans
+l'environnement pixi du projet, dans son `.venv`, ou par `uvx`.
 
 ## Pourquoi
 
@@ -49,19 +50,19 @@ seul avertissement. C'est un `AG304` sur un tableau HTML assemblé à partir de 
 
 | Élément | Utilisateur | Rôle |
 |---|---|---|
-| `mak verifier` | Tout agent, la CI, toi | Lance `marimo check` et lit tous ses constats en JSON, applique les règles, puis exécute chaque cellule par `marimo export session`. |
+| `mak verifier` | Tout agent, la CI, l'utilisateur | Lance `marimo check` et lit tous ses constats en JSON, applique les règles, puis exécute chaque cellule par `marimo export session`. |
 | `mak cellules` | Un agent qui va insérer des cellules | Applique les règles aux cellules proposées, dans le contexte du notebook. |
 | `mak api` | Tout agent | Affiche la signature et la documentation d'un symbole de marimo installé. `--chercher` trouve un nom. |
 | `mak widgets` | Tout agent | Affiche la doc de wigglystuff 0.6.0 sans réseau et la compare à la version installée. |
 | `mak regles` | L'assistant de marimo, les agents | Affiche le contrat de quatorze règles que `[tool.marimo.ai] rules` transmet à l'assistant. |
 | `mak mcp` | L'assistant de marimo en modes Ask et Agent, Claude Code, Copilot | Sert six outils MCP. |
 | `skills/` | Les agents qui lisent des skills | Contient `marimo-agent-kit`, `wigglystuff` et `marimo-lens`. |
-| `mak hook` | Claude Code, Copilot | Vérifie chaque notebook que l'agent écrit. Une erreur bloque l'agent, un avertissement lui est signalé. Au démarrage, donne le contexte réseau du poste. |
-| `mak.audit()` | Toi, dans le notebook | Affiche le rapport et le message à renvoyer à l'agent. |
-| `mak sonde-llm`, `mak confidentialite` | Toi, au travail | Testent ce qu'un LLM interne accepte, et ce qui sort du poste. |
-| `mak contexte`, `mak marimo` | Les agents, toi | Disent le réseau du poste et ses consignes, et lancent marimo avec l'environnement du pack. |
-| `mak garde` | Toi | Fait le bilan de la garde avant outil, ou juge une commande à l'essai. |
-| `mak lancer -- commande` | Toi | Lance un outil, par exemple safeagents, avec le proxy et les certificats du pack. |
+| `mak hook` | Claude Code, Copilot | Vérifie chaque notebook que l'agent écrit. Une erreur bloque l'agent, un avertissement lui est signalé. Au démarrage, donne le gestionnaire de paquets du projet et ses consignes. |
+| `mak.audit()` | L'utilisateur, dans le notebook | Affiche le rapport et le message à renvoyer à l'agent. |
+| `mak sonde-llm`, `mak confidentialite` | L'utilisateur | Testent ce qu'un LLM interne accepte, et ce qui sort du poste. |
+| `mak contexte`, `mak marimo` | Les agents, l'utilisateur | Disent le gestionnaire de paquets du projet et ses consignes, et lancent le marimo du projet. |
+| `mak garde` | L'utilisateur | Fait le bilan de la garde avant outil, ou juge une commande à l'essai. |
+| `mak lancer -- commande` | L'utilisateur | Lance un outil, par exemple safeagents, avec le proxy et les certificats du kit. |
 
 Les six outils MCP sont `verifier_notebook`, `verifier_cellules`, `api_marimo`,
 `chercher_api_marimo`, `widgets_wigglystuff` et `regles_marimo`.
@@ -97,10 +98,11 @@ Pour l'utiliser sans l'installer, lance cette commande :
 uvx --from "git+https://github.com/auspect/marimo-agent-kit" mak verifier notebook.py
 ```
 
-Au travail, ces commandes vont sur GitHub. Construis plutôt la roue une fois, dépose-la sur le
-dépôt interne, puis installe-la depuis ce dépôt. Un fichier `src/marimo_agent_kit/mak.env` posé
-avant `uv build` voyage dans la roue et sert de configuration par défaut à tous les postes. La
-section [Hors ligne par défaut](#hors-ligne-par-défaut) décrit ce fichier.
+Ces commandes vont sur GitHub. Sur un réseau restreint, construis plutôt la roue une fois,
+dépose-la sur le dépôt interne, puis installe-la depuis ce dépôt. Un fichier
+`src/marimo_agent_kit/mak.env` posé avant `uv build` voyage dans la roue et sert de configuration
+par défaut à toutes ses installations. La section [Le fichier mak.env](#le-fichier-makenv) le
+décrit.
 
 ```bash
 uv build --wheel
@@ -110,7 +112,15 @@ uv build --wheel
 uv tool install marimo-agent-kit
 ```
 
-Dans un projet, l'installateur affiche d'abord ce qu'il ferait :
+pixi est le gestionnaire de paquets par défaut. Crée le projet au format `pyproject.toml`, que
+pixi et marimo lisent tous deux, et ajoute marimo à son environnement :
+
+```bash
+pixi init --format pyproject
+pixi add marimo
+```
+
+Dans le projet, l'installateur affiche d'abord ce qu'il ferait :
 
 ```bash
 mak installer --skill agents --marimo --hooks
@@ -126,10 +136,14 @@ Les options choisissent ce que l'installateur pose :
 
 - `--skill agents`, `--skill claude` ou `--skill github` pose les trois skills dans `.agents/skills/`,
   `.claude/skills/` ou `.github/skills/`. `--seulement wigglystuff,marimo-lens` restreint la liste.
-- `--marimo` ajoute le contrat et le serveur MCP à `pyproject.toml`. Le serveur MCP de l'assistant
-  demande `marimo[mcp]` dans l'environnement qui lance marimo.
+- `--marimo` ajoute à `pyproject.toml` le contrat, le serveur MCP et
+  `[tool.marimo.package_management] manager = "pixi"`, ou `"uv"` dans un projet uv. Le serveur
+  MCP de l'assistant demande `marimo[mcp]` dans l'environnement qui lance marimo. marimo ne lit
+  sa configuration de projet que dans `pyproject.toml` : un projet en `pixi.toml` seul reçoit le
+  bloc à recopier.
 - `--hooks` pose trois hooks. Le premier relit chaque notebook écrit. Le deuxième donne à l'agent
-  le contexte réseau du poste au démarrage de la session. Le troisième est la garde avant outil.
+  le gestionnaire de paquets du projet au démarrage de la session. Le troisième est la garde
+  avant outil.
   Par défaut, ils vont dans `.claude/settings.json`, que lisent Claude Code et Copilot.
   `--hooks github` les met dans `.github/hooks/marimo-agent-kit.json`, que lit Copilot seul. Ne
   pose qu'un des deux, sinon Copilot lancerait chaque hook deux fois ; l'installateur refuse le
@@ -236,80 +250,74 @@ Cette commande fait le bilan du poste et affiche les lignes à poser en PowerShe
 kit pose lui-même `MARIMO_SKIP_UPDATE_CHECK=1` et `PYDANTIC_AI_NO_BANNER=1` sur chaque marimo
 qu'il lance.
 
-### Hors ligne par défaut
+### pixi par défaut, et installer un paquet depuis marimo
 
-Au travail, un outil qui va sur le web déclenche des alertes de sécurité. Sans réglage, uv
-contacte pypi.org à chaque lancement, même quand tout est en cache, et télécharge un Python
-absent depuis github.com. Le kit ne contacte donc que les dépôts internes que uv ou pixi
-déclarent déjà, par `uv.toml`, `UV_DEFAULT_INDEX` ou la configuration de pixi. La variable
-`MAK_RESEAU` choisit le mode.
+pixi gère les paquets du projet. `mak installer --marimo` règle marimo pour qu'il passe par lui :
+quand une cellule importe un paquet absent, l'éditeur propose de l'installer, lance
+`pixi add <paquet>`, et le paquet arrive dans `pyproject.toml`, `pixi.lock` et l'environnement.
+La cellule repart ensuite.
 
-| Mode | Ce que font les outils du kit |
-|---|---|
-| `interne`, le défaut | uv passe par le dépôt interne déclaré. Sans dépôt interne, ou avec un dépôt public en plus, uv ne lit que son cache. uv ne télécharge un Python que depuis un miroir interne. Le bac à sable pixi ne sert que si pixi a un miroir interne. |
-| `aucun` | Aucun accès réseau. uv ne lit que son cache et pixi ne sert pas. |
-| `public` | uv et pixi gardent leur comportement par défaut, pypi.org compris. |
-
-Un faux proxy qui note chaque hôte a servi de mesure. `mak verifier tests/exemples/propre.py`,
-avec son bac à sable uv, ne contacte aucun hôte en modes `interne` et `aucun`. Avec un dépôt
-Artifactory déclaré, il ne contacte que lui. En mode `public`, il contacte pypi.org.
-
-Le fichier `mak.env` porte le reste : le proxy, l'autorité de certification, les variables propres
-au pack et des consignes pour l'agent. Il contient une variable par ligne, au format `NOM=valeur`.
+`mak marimo`, `mak verifier`, `mak api` et `mak widgets` cherchent marimo dans cet ordre : la
+commande de `MAK_MARIMO`, l'environnement pixi du projet, son `.venv`, le Python de `mak`, puis
+`uvx marimo`. L'environnement pixi se lance par `pixi run --manifest-path`, qui l'active : marimo
+y trouve pixi, et `pixi add` vise le bon projet même si marimo tourne depuis un autre dossier.
 
 ```bash
-MAK_RESEAU=interne
-HTTPS_PROXY=http://proxy.entreprise.local:8080
-NO_PROXY=localhost,127.0.0.1,.entreprise.local
-SSL_CERT_FILE=C:\certs\ca-entreprise.pem
-UV_SYSTEM_CERTS=1
+mak marimo edit notebook.py
+```
+
+Le kit ne règle pas le réseau. pixi et uv suivent leur propre configuration. Sur un réseau
+restreint, déclare le miroir conda ou le dépôt PyPI interne dans la configuration de pixi, par
+exemple `[mirrors]` ou `[pypi-config]` dans `~/.pixi/config.toml`. Le bouton de marimo, les
+commandes du kit et l'agent passent alors tous par lui.
+
+### Le fichier mak.env
+
+Le fichier `mak.env` porte le proxy, l'autorité de certification, les variables propres au kit
+et des consignes pour l'agent. Il contient une variable par ligne, au format `NOM=valeur`.
+
+```bash
+HTTPS_PROXY=http://proxy.exemple.interne:8080
+NO_PROXY=localhost,127.0.0.1,.exemple.interne
+SSL_CERT_FILE=C:\certs\ca-interne.pem
 MAK_CONTEXTE=Les données de production restent sur le partage réseau. Ne les copie pas.
 ```
 
 Le kit lit jusqu'à quatre fichiers. Le dernier l'emporte :
 
-1. le `mak.env` livré dans le paquet, pour une roue construite par l'entreprise ;
+1. le `mak.env` livré dans le paquet, pour une roue construite pour une équipe ;
 2. `~/.config/marimo-agent-kit/mak.env`, ou `%APPDATA%\marimo-agent-kit\mak.env` sous Windows ;
 3. le `mak.env` le plus proche du notebook ;
 4. le fichier que nomme `MAK_CONFIG`.
 
 Une variable déjà posée dans le shell garde sa valeur. Chaque ligne `MAK_CONTEXTE` ajoute une
 consigne. Les variables vont à tout ce que le kit lance : `marimo check`, l'exécution, `mak api`,
-la sonde LLM et `mak marimo`. Le kit masque l'identifiant et le mot de passe d'une adresse de
-proxy dans ce qu'il affiche, mais le fichier reste en clair. N'y mets pas de mot de passe.
+la sonde LLM et `mak marimo`, donc aussi au `pixi add` que lance le bouton de marimo. Le kit
+masque l'identifiant et le mot de passe d'une adresse de proxy dans ce qu'il affiche, mais le
+fichier reste en clair. N'y mets pas de mot de passe.
 
-L'agent reçoit le contexte réseau de trois façons. Le hook de démarrage le lui donne, dans
-Claude Code comme dans Copilot. L'outil MCP `regles_marimo` le rend avec le contrat, et le skill lui demande de lancer
-`mak contexte`. Ce contexte lui interdit `pip install`, les options `--index-url`, les sources
-`git+https` et la documentation en ligne. Il le renvoie vers `mak api`, `mak widgets` et les
-références des skills. `mak contexte --detail` te montre d'où vient chaque réglage.
+L'agent reçoit le contexte du projet de trois façons. Le hook de démarrage le lui donne, dans
+Claude Code comme dans Copilot. L'outil MCP `regles_marimo` le rend avec le contrat, et le skill
+lui demande de lancer `mak contexte`. Ce contexte nomme le gestionnaire du projet et la commande
+qui ajoute un paquet. Il interdit `pip install`, les options d'index, les sources `git+` et
+`npx`, et renvoie vers `mak api`, `mak widgets` et les références des skills pour la
+documentation. `mak contexte --detail` montre d'où vient chaque réglage, le projet trouvé et le
+marimo que le kit lancera.
 
 ```bash
 mak contexte --detail
 ```
 
-`mak marimo` lance marimo avec le même environnement. L'assistant de marimo passe alors par le
-proxy, et l'installation d'un paquet manquant suit le mode réseau.
-
-```bash
-mak marimo edit notebook.py
-```
-
 ### Garde avant outil
 
-La garde juge chaque commande de l'agent avant qu'elle tourne, dans Claude Code comme dans
-Copilot, Windows compris. Elle vise ce que le contexte réseau interdit déjà en mots :
+La garde juge chaque commande du shell de l'agent avant qu'elle tourne, dans Claude Code comme
+dans Copilot, Windows compris. Elle vise ce qui contourne le gestionnaire du projet et les
+dépôts que sa configuration choisit :
 
 - `pip install` ;
-- un index ou une source `git+` vers un hôte qui n'est pas déclaré interne ;
-- `curl`, `wget` ou `Invoke-WebRequest` vers un tel hôte ;
-- `npx` ;
-- uv sans `--offline` quand le kit l'a coupé du réseau ;
-- la recherche web, et la lecture d'une page externe.
-
-Un hôte est interne s'il est déclaré : dépôt de uv ou de pixi, proxy, `NO_PROXY`,
-`MAK_HOTES_INTERNES`, ou adresse privée. Un hôte public connu, comme pypi.org ou github.com, ne
-l'est jamais. En mode réseau `public`, la garde ne juge rien.
+- une option d'index, comme `--index-url`, ou une variable `UV_INDEX_URL` posée sur la commande ;
+- une source `git+` ;
+- `npx`.
 
 `MAK_GARDE` règle son action. `observer`, le défaut, note ce qu'elle aurait refusé sans rien
 bloquer. `agir` refuse et donne la raison à l'agent. `off` l'éteint. Le journal ne garde que la
@@ -362,20 +370,22 @@ amont, avec ou sans `/v1`, n'a pas été vérifiée : la sonde le dira.
 - L'exécution écrit `__marimo__/session/<notebook>.json` à côté du notebook. Le dossier
   `__marimo__/` est d'ordinaire ignoré par git.
 - La garde lit le texte des commandes. Une commande déguisée, par exemple un script Python qui
-  télécharge, lui échappe. Elle ne remplace pas un bac à sable.
+  installe un paquet, lui échappe. Elle ne remplace pas un bac à sable.
 - Les règles `AG3xx` ne suivent pas les données d'une cellule à l'autre. `AG304` ne voit pas qu'un
   morceau de HTML a été échappé avant d'être assemblé ailleurs.
-- La détection des miroirs de pixi lit sa configuration sans lancer pixi, absent des essais. Elle
-  n'est pas vérifiée sur un vrai poste.
+- Le kit ne lance que l'environnement pixi `default`. Pour un autre, donne la commande par
+  `MAK_MARIMO`, par exemple `pixi run -e cpu marimo`.
+- Le bouton de marimo installe le paquet par son nom conda. Un paquet absent de conda-forge
+  s'ajoute à la main par `pixi add --pypi`.
 - Huit widgets wigglystuff chargent du JavaScript depuis un CDN dans le navigateur. Le skill
-  `wigglystuff` les écarte hors du mode public, mais le kit ne le contrôle pas.
+  `wigglystuff` les écarte sur un réseau restreint, mais le kit ne le contrôle pas.
 - Le kit vise marimo 0.25.2, wigglystuff 0.6.0 et marimo-lens 0.2.4. `marimo._code_mode` et les
   outils de l'assistant changent d'une version à l'autre.
 
 ## Développer
 
 ```bash
-uv run --no-project --with marimo --with polars python -m unittest discover -s tests
+uv run --no-project --python 3.13 --with marimo --with polars python -m unittest discover -s tests
 uvx ruff check .
 ```
 

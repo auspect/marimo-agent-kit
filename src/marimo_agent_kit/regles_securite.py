@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import ipaddress
 import re
 import urllib.parse
 
@@ -142,13 +143,15 @@ def _html(carnet: Carnet, ctx: Contexte):
             yield cellule, appel, f"`{nom}(...)` reçoit des valeurs insérées sans échappement."
 
 
-def _config(ctx: Contexte):
-    if not hasattr(ctx, "_config_reseau"):
-        from .environnement import charger
-
-        chemin = ctx.carnet.chemin
-        ctx._config_reseau = charger(chemin.parent if chemin is not None else None)
-    return ctx._config_reseau
+def _hote_local(hote: str) -> bool:
+    hote = hote.lower().strip("[]")
+    if hote == "localhost":
+        return True
+    try:
+        adresse = ipaddress.ip_address(hote)
+    except ValueError:
+        return False
+    return adresse.is_private or adresse.is_loopback
 
 
 def _adresse(appel: ast.Call) -> str:
@@ -163,12 +166,11 @@ def _adresse(appel: ast.Call) -> str:
 
 
 @regle("AG305", "adresse-externe", "avertissement",
-       "Lire depuis une adresse écrite en dur dont l'hôte n'est pas déclaré interne, quand le poste n'est pas en mode "
-       "réseau public.",
-       "La cellule sort du poste à chaque exécution : alerte de sécurité au travail, échec hors ligne, et des données "
-       "qui changent sans prévenir.",
-       "Télécharge le fichier une fois, par un moyen que l'utilisateur valide, puis lis la copie locale. Ou déclare "
-       "l'hôte dans `MAK_HOTES_INTERNES` s'il est interne.")
+       "Lire depuis une adresse écrite en dur dont l'hôte n'est pas local.",
+       "La cellule sort de la machine à chaque exécution : elle échoue hors ligne ou sur un réseau restreint, et ses "
+       "données changent sans prévenir.",
+       "Télécharge le fichier une fois, par un moyen que l'utilisateur valide, puis lis la copie locale. Si l'adresse "
+       "est voulue, passe `--ignorer AG305` et dis pourquoi.")
 def _adresse_externe(carnet: Carnet, ctx: Contexte):
     for cellule, appel in _appels(carnet):
         nom = _nom(ctx, appel)
@@ -177,10 +179,9 @@ def _adresse_externe(carnet: Carnet, ctx: Contexte):
         adresse = _adresse(appel)
         if not adresse.startswith(("http://", "https://")):
             continue
-        config = _config(ctx)
         hote = urllib.parse.urlsplit(adresse).hostname or ""
-        if not config.hote_permis(hote):
-            yield cellule, appel, f"`{nom}` contacte {hote}, qui n'est pas un hôte interne déclaré (mode {config.mode})."
+        if not _hote_local(hote):
+            yield cellule, appel, f"`{nom}` contacte {hote} à chaque exécution."
 
 
 def _est_environ(noeud: ast.AST, ctx: Contexte) -> bool:

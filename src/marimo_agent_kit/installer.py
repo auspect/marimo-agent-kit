@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from .contrat import contrat_court, reference_regles
+from .environnement import trouver_projet
 from .ressources import SKILLS, dossier_skill
 
 ICI = Path(__file__).resolve().parent
@@ -63,7 +64,13 @@ def poser_skill(dossier: Path, cible: str, appliquer: bool, remplacer: bool = Fa
     return actions
 
 
-def bloc_marimo(commande: list[str]) -> str:
+def bloc_paquets(gestionnaire: str) -> str:
+    return ("\n[tool.marimo.package_management]\n"
+            "# Le bouton d'installation de l'éditeur ajoute le paquet manquant au projet par ce gestionnaire.\n"
+            f'manager = "{gestionnaire}"\n')
+
+
+def bloc_marimo(commande: list[str], gestionnaire: str = "pixi") -> str:
     # Chaîne littérale TOML (''' … ''') : aucun antislash n'y est interprété.
     regles = contrat_court().replace("'''", "' ' '")
     return (
@@ -74,26 +81,35 @@ def bloc_marimo(commande: list[str]) -> str:
         "# Outils pour les modes Ask et Agent de l'assistant (demande marimo[mcp]).\n"
         f"command = {json.dumps(commande[0])}\n"
         f"args = {json.dumps([*commande[1:], 'mcp'], ensure_ascii=False)}\n"
+        + bloc_paquets(gestionnaire)
     )
 
 
 def poser_marimo(dossier: Path, appliquer: bool, source: str | None = None) -> list[Action]:
     pyproject = dossier / "pyproject.toml"
-    bloc = bloc_marimo(commande_mak(source))
+    projet = trouver_projet(dossier)
+    gestionnaire = "uv" if projet is not None and projet.gestionnaire == "uv" else "pixi"
+    bloc = bloc_marimo(commande_mak(source), gestionnaire)
     if not pyproject.exists():
         return [Action("pyproject.toml", "à compléter à la main",
-                       "pas de pyproject.toml : en créer un juste pour marimo changerait ce que uv voit du dossier. "
-                       "Mets ce bloc dans ton pyproject, ou dans ~/.config/marimo/marimo.toml sans le préfixe "
-                       "`tool.marimo.` :\n" + bloc)]
+                       "marimo ne lit sa configuration de projet que dans pyproject.toml. `pixi init --format pyproject` "
+                       "en crée un que pixi lit aussi. Sinon, mets ce bloc dans ~/.config/marimo/marimo.toml sans le "
+                       "préfixe `tool.marimo.` :\n" + bloc)]
     texte = pyproject.read_text(encoding="utf-8")
-    if "[tool.marimo.ai]" in texte or "[tool.marimo.mcp" in texte:
-        if "marimo_agent_kit" in texte:
+    ajout, detail = bloc, f'[tool.marimo.ai] rules, le serveur MCP et manager = "{gestionnaire}"'
+    if "[tool.marimo.ai]" in texte or "[tool.marimo.mcp" in texte or "[tool.marimo.package_management]" in texte:
+        if "marimo_agent_kit" not in texte:
+            return [Action("pyproject.toml", "à compléter à la main",
+                           "[tool.marimo.ai], [tool.marimo.mcp] ou [tool.marimo.package_management] existe déjà : "
+                           "fusionne ce bloc à la main :\n" + bloc)]
+        if "[tool.marimo.package_management]" in texte:
             return [Action("pyproject.toml", "déjà là")]
-        return [Action("pyproject.toml", "à compléter à la main",
-                       "[tool.marimo.ai] ou [tool.marimo.mcp] existe déjà : fusionne ce bloc à la main :\n" + bloc)]
+        ajout, detail = bloc_paquets(gestionnaire), f'manager = "{gestionnaire}" pour le bouton d\'installation'
+    if projet is not None and projet.gestionnaire is None:
+        detail += ". pixi ne gère pas encore ce projet : `pixi init --format pyproject` l'y ajoute"
     if appliquer:
-        pyproject.write_text(texte.rstrip("\n") + "\n" + bloc, encoding="utf-8")
-    return [Action("pyproject.toml", "créé" if appliquer else "à créer", "[tool.marimo.ai] rules et le serveur MCP")]
+        pyproject.write_text(texte.rstrip("\n") + "\n" + ajout, encoding="utf-8")
+    return [Action("pyproject.toml", "créé" if appliquer else "à créer", detail)]
 
 
 def _fusionner_json(chemin: Path, modifier, appliquer: bool, dossier: Path) -> Action:
@@ -133,7 +149,7 @@ def poser_hooks(dossier: Path, appliquer: bool, source: str | None = None, cible
         hooks = donnees.setdefault("hooks", {})
         change = False
         for evenement, matcher, delai in (("PostToolUse", "Write|Edit|MultiEdit", 120), ("SessionStart", "", 30),
-                                          ("PreToolUse", "Bash|PowerShell|WebFetch|WebSearch", 15)):
+                                          ("PreToolUse", "Bash|PowerShell", 15)):
             entrees = hooks.setdefault(evenement, [])
             if any(commande == h.get("command") for e in entrees for h in e.get("hooks", [])):
                 continue
@@ -151,7 +167,7 @@ def _hooks_copilot(donnees: dict, commande: str) -> bool:
     change = False
     for evenement, argument, matcher, delai in (
         ("sessionStart", "sessionStart", "", 30),
-        ("preToolUse", "preToolUse", "bash|powershell|web_fetch|web_search", 15),
+        ("preToolUse", "preToolUse", "bash|powershell", 15),
         ("postToolUse", "", "create|edit|str_replace_editor", 120),
     ):
         ligne = f"{commande} {argument}".strip()

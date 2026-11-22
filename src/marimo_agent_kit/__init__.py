@@ -5,7 +5,7 @@
 - `audit()` : le rapport, rendu dans une cellule du notebook.
 """
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 from .audit import audit  # noqa: E402
 from .verifier import verifier  # noqa: E402

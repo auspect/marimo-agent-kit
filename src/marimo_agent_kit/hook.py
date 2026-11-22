@@ -6,7 +6,8 @@ passer, et `hookSpecificOutput.additionalContext` ajoute du contexte. Copilot li
 `additionalContext` à la racine de la réponse.
 
 Au démarrage, Claude Code envoie `hook_event_name: "SessionStart"` et Copilot appelle
-`mak hook sessionStart`. Le hook rend alors le contexte réseau du poste.
+`mak hook sessionStart`. Le hook rend alors le contexte du projet : son gestionnaire de paquets,
+le proxy et les consignes.
 
 Avant un outil (`PreToolUse`, ou `mak hook preToolUse` pour Copilot), la garde juge la commande.
 Elle refuse par le code 2 et la raison sur la sortie d'erreur, que les deux agents comprennent.
@@ -47,10 +48,10 @@ def chemin_ecrit(donnees: dict) -> tuple[str, Path | None]:
 
 
 def debut_de_session(donnees: dict, origine: str) -> int:
-    from .environnement import charger, contexte_agent
+    from .environnement import charger, contexte_agent, trouver_projet
 
     depuis = Path(donnees["cwd"]) if isinstance(donnees.get("cwd"), str) else None
-    texte = contexte_agent(charger(depuis))
+    texte = contexte_agent(charger(depuis), trouver_projet(depuis))
     if origine == "claude":
         sortie = {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": texte}}
     else:
@@ -72,7 +73,7 @@ def avant_outil(donnees: dict) -> int:
                 args = json.loads(args)
         config = charger(Path(donnees["cwd"]) if isinstance(donnees.get("cwd"), str) else None)
         mode = mode_garde(config)
-        refus = juger(outil, args, config) if isinstance(args, dict) and mode != "off" else []
+        refus = juger(outil, args) if isinstance(args, dict) and mode != "off" else []
         if not refus:
             return 0
         noter(config, outil, refus, "refusé" if mode == "agir" else "aurait refusé")
@@ -80,7 +81,7 @@ def avant_outil(donnees: dict) -> int:
             return 0
     except Exception:  # noqa: BLE001 : une garde qui plante bloquerait l'agent chez Copilot
         return 0
-    sys.stderr.write("marimo-agent-kit, garde du poste : " + " ".join(r.raison for r in refus) + "\n")
+    sys.stderr.write("marimo-agent-kit, garde : " + " ".join(r.raison for r in refus) + "\n")
     return 2
 
 

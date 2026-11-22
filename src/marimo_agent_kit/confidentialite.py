@@ -110,25 +110,8 @@ def diagnostiquer(env: Mapping[str, str], infos: dict | None) -> list[Constat]:
 
 
 def constats_reseau(config: Configuration) -> list[Constat]:
-    constats = [Constat("info", "mode réseau du kit",
-                        f"{config.mode}. `mak contexte --detail` dit d'où vient chaque réglage")]
-    publics = sorted({s.url for s in config.depots_uv if not s.interne})
-    if config.mode == "public":
-        if not config.uv_interne:
-            constats.append(Constat("attention", "paquets Python",
-                                    "mode public : uv du kit va sur " + (", ".join(map(masquer, publics)) or "pypi.org")))
-    elif not config.uv_en_ligne:
-        constats.append(Constat("ok", "paquets Python", "uv du kit ne lit que son cache (UV_OFFLINE=1)"
-                                + (f" ; dépôt public déclaré : {', '.join(map(masquer, publics))}" if publics else "")))
-    else:
-        constats.append(Constat("ok", "paquets Python", "uv du kit passe par "
-                                + ", ".join(sorted({masquer(s.url) for s in config.depots_uv}))))
-    if config.env.get("UV_PYTHON_DOWNLOADS") == "never":
-        constats.append(Constat("ok", "interpréteurs Python", "uv du kit n'en télécharge aucun"))
-    elif not config.python_interne:
-        constats.append(Constat("attention", "interpréteurs Python",
-                                "uv télécharge un Python absent depuis github.com et releases.astral.sh : "
-                                "UV_PYTHON_DOWNLOADS=never ou UV_PYTHON_INSTALL_MIRROR"))
+    constats = [Constat("info", "paquets", "pixi ou uv suit sa propre configuration : un miroir ou un dépôt interne "
+                                           "se déclare chez lui. `mak contexte --detail` dit ce que le kit a trouvé")]
     if config.resume_proxy():
         constats.append(Constat("info", "proxy", config.resume_proxy()))
     constats += [Constat("à régler", "configuration du kit", p) for p in config.problemes]

@@ -1,29 +1,27 @@
-"""Ce que le kit laisse sortir du poste, et l'environnement qu'il donne à ce qu'il lance.
+"""Le projet, son gestionnaire de paquets, et l'environnement que le kit donne à ce qu'il lance.
 
-Le réseau est coupé par défaut, sauf vers les dépôts internes que uv ou pixi déclarent déjà.
-`MAK_RESEAU` choisit le mode : `interne` (défaut), `aucun` ou `public`. Les fichiers `mak.env`
-portent le proxy, l'autorité de certification et toute variable propre au pack. Ils se lisent
-dans cet ordre, le dernier l'emportant : celui livré dans le paquet, celui de l'utilisateur,
-le plus proche du notebook, puis celui que nomme `MAK_CONFIG`. Une variable déjà présente
-dans l'environnement du shell garde sa valeur.
+Le kit ne règle pas le réseau. pixi, le gestionnaire par défaut, et uv suivent leur propre
+configuration : un miroir ou un dépôt interne se déclare chez eux, et tout ce que le kit lance en
+profite. Les fichiers `mak.env` portent le proxy, l'autorité de certification et les consignes
+pour l'agent. Ils se lisent dans cet ordre, le dernier l'emportant : celui livré dans le paquet,
+celui de l'utilisateur, le plus proche du notebook, puis celui que nomme `MAK_CONFIG`. Une
+variable déjà présente dans l'environnement du shell garde sa valeur.
 """
 
 from __future__ import annotations
 
-import ipaddress
 import os
 import re
+import shutil
 import ssl
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
 
 ICI = Path(__file__).resolve().parent
 NOM_FICHIER = "mak.env"
-MODES = ("interne", "aucun", "public")
 
 VARIABLES = {
     "MARIMO_SKIP_UPDATE_CHECK": ("1", "pas de visite quotidienne à marimo.io au lancement de `marimo edit`"),
@@ -31,65 +29,19 @@ VARIABLES = {
 }
 ENV_SOBRE = {nom: valeur for nom, (valeur, _) in VARIABLES.items()}
 
-HOTES_PUBLICS = ("pypi.org", "pythonhosted.org", "anaconda.org", "anaconda.com", "prefix.dev", "github.com",
-                 "githubusercontent.com", "astral.sh", "npmjs.org", "marimo.io")
 VARIABLES_PROXY = ("HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY")
 VARIABLES_CA = ("SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "UV_SYSTEM_CERTS", "UV_NATIVE_TLS")
-VARIABLES_INDEX_UV = ("UV_DEFAULT_INDEX", "UV_INDEX_URL", "UV_INDEX", "UV_EXTRA_INDEX_URL", "UV_FIND_LINKS")
-CLES_INDEX_UV = {"index-url", "default-index", "extra-index-url", "url", "find-links"}
 LIGNE_ENV = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
-LIGNE_TOML = re.compile(r'^\s*"?([\w./:-]+)"?\s*=\s*(.*)$')
-URL = re.compile(r"https?://[^\s\"'\],]+")
 SECRET = re.compile(r"KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH", re.I)
 
 
 @dataclass
-class Source:
-    url: str
-    ou: str
-
-    @property
-    def interne(self) -> bool:
-        hote = (urllib.parse.urlsplit(self.url).hostname or "").lower()
-        return bool(hote) and not any(hote == p or hote.endswith("." + p) for p in HOTES_PUBLICS)
-
-
-@dataclass
 class Configuration:
-    mode: Literal["interne", "aucun", "public"]
     env: dict[str, str]
     origines: dict[str, str] = field(default_factory=dict)
     fichiers: list[tuple[str, Path]] = field(default_factory=list)
     contexte: list[str] = field(default_factory=list)
     problemes: list[str] = field(default_factory=list)
-    depots_uv: list[Source] = field(default_factory=list)
-    miroirs_python: list[Source] = field(default_factory=list)
-    depots_pixi: list[Source] = field(default_factory=list)
-
-    @property
-    def uv_interne(self) -> bool:
-        return bool(self.depots_uv) and all(s.interne for s in self.depots_uv)
-
-    @property
-    def python_interne(self) -> bool:
-        return bool(self.miroirs_python) and all(s.interne for s in self.miroirs_python)
-
-    @property
-    def pixi_interne(self) -> bool:
-        return bool(self.depots_pixi) and all(s.interne for s in self.depots_pixi)
-
-    @property
-    def uv_en_ligne(self) -> bool:
-        return self.env.get("UV_OFFLINE") != "1"
-
-    def pixi_permis(self) -> tuple[bool, str]:
-        if self.mode == "public":
-            return True, ""
-        if self.mode == "aucun":
-            return False, "mode aucun : pixi n'a pas de mode hors ligne vérifié par le kit"
-        if not self.pixi_interne:
-            return False, "pixi n'a pas de miroir interne déclaré : il irait sur conda.anaconda.org ou prefix.dev"
-        return True, ""
 
     def proxy(self) -> dict[str, str]:
         return {nom.lower(): valeur for nom in VARIABLES_PROXY if (valeur := _lire(self.env, nom))}
@@ -118,37 +70,14 @@ class Configuration:
             sauf += f" et {len(exclus) - 6} autres (`NO_PROXY`)"
         return masquer(cible) + sauf
 
-    def hotes_internes(self) -> set[str]:
-        hotes = {"localhost"}
-        for source in (*self.depots_uv, *self.miroirs_python, *self.depots_pixi):
-            if source.interne:
-                hotes.add((urllib.parse.urlsplit(source.url).hostname or "").lower())
-        cible = self.proxy().get("https_proxy") or self.proxy().get("http_proxy") or ""
-        hotes.add((urllib.parse.urlsplit(cible).hostname or "").lower())
-        for liste in (self.proxy().get("no_proxy", ""), self.env.get("MAK_HOTES_INTERNES", "")):
-            hotes |= {h.strip().lstrip("*").lstrip(".").lower() for h in liste.split(",")}
-        return {h for h in hotes if h and "/" not in h}
-
-    def hote_interne(self, hote: str) -> bool:
-        hote = hote.lower().strip("[]")
-        if not hote or any(hote == p or hote.endswith("." + p) for p in HOTES_PUBLICS):
-            return False
-        try:
-            adresse = ipaddress.ip_address(hote)
-            return adresse.is_private or adresse.is_loopback
-        except ValueError:
-            pass
-        return any(hote == h or hote.endswith("." + h) for h in self.hotes_internes())
-
-    def hote_permis(self, hote: str) -> bool:
-        if self.mode == "public":
-            return True
-        if self.mode == "aucun":
-            return hote.lower().strip("[]") in ("localhost", "127.0.0.1", "::1")
-        return self.hote_interne(hote)
-
     def fichier_ca(self) -> str | None:
         return _lire(self.env, "SSL_CERT_FILE") or _lire(self.env, "REQUESTS_CA_BUNDLE")
+
+
+@dataclass
+class Projet:
+    manifeste: Path
+    gestionnaire: str | None  # "pixi", "uv", ou None pour un pyproject.toml qui ne nomme ni l'un ni l'autre
 
 
 def _lire(env: Mapping[str, str], nom: str) -> str:
@@ -179,11 +108,55 @@ def _dossier_config(env: Mapping[str, str]) -> Path:
     return Path(env.get("XDG_CONFIG_HOME") or _accueil(env) / ".config")
 
 
-def _le_plus_proche(depart: Path, nom: str) -> Path | None:
-    depart = depart.resolve()
-    for dossier in [depart if depart.is_dir() else depart.parent, *depart.parents]:
-        if (dossier / nom).is_file():
-            return dossier / nom
+def _dossiers(depuis: Path | None) -> list[Path]:
+    depart = (depuis or Path.cwd()).resolve()
+    return [depart if depart.is_dir() else depart.parent, *depart.parents]
+
+
+def _le_plus_proche(depuis: Path, nom: str) -> Path | None:
+    return next((dossier / nom for dossier in _dossiers(depuis) if (dossier / nom).is_file()), None)
+
+
+def _manifeste_pixi(dossier: Path) -> Path | None:
+    if (dossier / "pixi.toml").is_file():
+        return dossier / "pixi.toml"
+    pyproject = dossier / "pyproject.toml"
+    if pyproject.is_file() and "[tool.pixi" in pyproject.read_text(encoding="utf-8", errors="replace"):
+        return pyproject
+    return None
+
+
+def trouver_projet(depuis: Path | None = None) -> Projet | None:
+    """Le manifeste le plus proche, et le gestionnaire qu'il déclare."""
+    for dossier in _dossiers(depuis):
+        if manifeste := _manifeste_pixi(dossier):
+            return Projet(manifeste, "pixi")
+        pyproject = dossier / "pyproject.toml"
+        if pyproject.is_file():
+            uv = "[tool.uv" in pyproject.read_text(encoding="utf-8", errors="replace") or (dossier / "uv.lock").is_file()
+            return Projet(pyproject, "uv" if uv else None)
+    return None
+
+
+def _executable(environnement: Path, nom: str) -> Path | None:
+    candidats = (environnement / "bin" / nom, environnement / "Scripts" / f"{nom}.exe", environnement / f"{nom}.exe")
+    return next((c for c in candidats if c.is_file()), None)
+
+
+def lanceur(nom: str, depuis: Path | None = None) -> list[str] | None:
+    """La commande `marimo` ou `python` de l'environnement du projet qui contient marimo.
+
+    L'environnement pixi par défaut passe avant `.venv`, et il se lance par `pixi run`, qui
+    l'active : marimo y trouve pixi pour installer un paquet manquant, et `PIXI_PROJECT_MANIFEST`
+    désigne le projet même quand marimo tourne depuis un autre dossier.
+    """
+    for dossier in _dossiers(depuis):
+        manifeste = _manifeste_pixi(dossier)
+        if manifeste and _executable(dossier / ".pixi" / "envs" / "default", "marimo") and shutil.which("pixi"):
+            return ["pixi", "run", "--manifest-path", str(manifeste), nom]
+        venv = dossier / ".venv"
+        if _executable(venv, "marimo") and (outil := _executable(venv, nom)):
+            return [str(outil)]
     return None
 
 
@@ -224,82 +197,6 @@ def fichiers_de_config(depuis: Path, env: Mapping[str, str]) -> tuple[list[tuple
     return retenus, problemes
 
 
-def _sources_toml(chemin: Path, cles: set[str], section: str = "", miroirs: bool = False) -> tuple[list[Source], list[Source]]:
-    # Lu ligne à ligne, sans tomllib, qui manque à Python 3.10.
-    index, pythons, courante, cle = [], [], "", ""
-    try:
-        texte = chemin.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return [], []
-    for ligne in texte.splitlines():
-        brute = ligne.strip()
-        if not brute or brute.startswith("#"):
-            continue
-        if brute.startswith("["):
-            courante = brute.strip("[] ")
-            continue
-        if section and not courante.startswith(section):
-            continue
-        trouve = LIGNE_TOML.match(brute)
-        if trouve:
-            cle, valeur = trouve.group(1), trouve.group(2)
-        else:
-            valeur = brute
-        if courante.endswith("mirrors") and miroirs:
-            index += [Source(u, str(chemin)) for u in URL.findall(valeur)]
-        elif cle == "python-install-mirror":
-            pythons += [Source(u, str(chemin)) for u in URL.findall(valeur)]
-        elif cle in cles:
-            index += [Source(u, str(chemin)) for u in URL.findall(valeur)]
-    return index, pythons
-
-
-def _sources_uv(depuis: Path, env: Mapping[str, str]) -> tuple[list[Source], list[Source]]:
-    index = [Source(u, nom) for nom in VARIABLES_INDEX_UV for u in URL.findall(env.get(nom, ""))]
-    pythons = [Source(u, "UV_PYTHON_INSTALL_MIRROR") for u in URL.findall(env.get("UV_PYTHON_INSTALL_MIRROR", ""))]
-    if env.get("UV_NO_CONFIG"):
-        return index, pythons
-    fichiers: list[tuple[Path, str]] = []
-    if env.get("UV_CONFIG_FILE"):
-        fichiers.append((Path(env["UV_CONFIG_FILE"]).expanduser(), ""))
-    depart = depuis.resolve()
-    for dossier in [depart if depart.is_dir() else depart.parent, *depart.parents]:
-        if (dossier / "uv.toml").is_file():
-            fichiers.append((dossier / "uv.toml", ""))
-            break
-        pyproject = dossier / "pyproject.toml"
-        if pyproject.is_file() and "[tool.uv" in pyproject.read_text(encoding="utf-8", errors="replace"):
-            fichiers.append((pyproject, "tool.uv"))
-            break
-    fichiers.append((_dossier_config(env) / "uv" / "uv.toml", ""))
-    systeme = Path(env.get("PROGRAMDATA", "C:/ProgramData")) / "uv" / "uv.toml" if os.name == "nt" else Path("/etc/uv/uv.toml")
-    fichiers.append((systeme, ""))
-    for chemin, section in fichiers:
-        if chemin.is_file():
-            i, p = _sources_toml(chemin, CLES_INDEX_UV, section)
-            index += i
-            pythons += p
-    return index, pythons
-
-
-def _sources_pixi(depuis: Path, env: Mapping[str, str]) -> list[Source]:
-    candidats = [_accueil(env) / ".pixi" / "config.toml", _dossier_config(env) / "pixi" / "config.toml"]
-    if env.get("PIXI_HOME"):
-        candidats.insert(0, Path(env["PIXI_HOME"]) / "config.toml")
-    if os.name != "nt":
-        candidats.append(Path("/etc/pixi/config.toml"))
-    projet = _le_plus_proche(depuis, ".pixi/config.toml")
-    if projet is not None:
-        candidats.append(projet)
-    sources, vus = [], set()
-    for chemin in candidats:
-        if chemin.is_file() and chemin.resolve() not in vus:
-            vus.add(chemin.resolve())
-            sources += _sources_toml(chemin, {"default-channels", "index-url", "extra-index-urls", "channel-alias"},
-                                     miroirs=True)[0]
-    return sources
-
-
 def charger(depuis: Path | None = None, env: Mapping[str, str] | None = None) -> Configuration:
     shell = dict(os.environ if env is None else env)
     depuis = depuis or Path.cwd()
@@ -323,98 +220,53 @@ def charger(depuis: Path | None = None, env: Mapping[str, str] | None = None) ->
         else:
             resultat[nom] = valeur
             origines[nom] = origine
-    demande = resultat.get("MAK_RESEAU", "interne").strip().lower()
-    if demande not in MODES:
-        problemes.append(f"MAK_RESEAU={demande!r} est inconnu ; le kit prend le mode le plus strict, aucun")
-        demande = "aucun"
-    depots_uv, miroirs_python = _sources_uv(depuis, resultat)
-    config = Configuration(mode=demande, env=resultat, origines=origines, fichiers=fichiers, contexte=contexte,
-                           problemes=problemes, depots_uv=depots_uv, miroirs_python=miroirs_python,
-                           depots_pixi=_sources_pixi(depuis, resultat))
     resultat.update(ENV_SOBRE)
-    if config.mode != "public":
-        if config.mode == "aucun" or not config.uv_interne:
-            resultat["UV_OFFLINE"] = "1"
-        if config.mode == "aucun" or not config.python_interne:
-            resultat["UV_PYTHON_DOWNLOADS"] = "never"
-    return config
+    return Configuration(env=resultat, origines=origines, fichiers=fichiers, contexte=contexte, problemes=problemes)
 
 
 def env_sobre(depuis: Path | None = None) -> dict[str, str]:
     return charger(depuis).env
 
 
-def _hotes(sources: list[Source]) -> str:
-    hotes = sorted({urllib.parse.urlsplit(s.url).hostname or s.url for s in sources})
-    return ", ".join(hotes)
+def ligne_paquets(projet: Projet | None) -> str:
+    if projet is None:
+        return ("Aucun projet trouvé. pixi est le gestionnaire conseillé : `pixi init --format pyproject`, puis "
+                "`pixi add marimo`. Demande à l'utilisateur avant de créer le projet.")
+    if projet.gestionnaire == "pixi":
+        return (f"pixi gère le projet ({projet.manifeste.name}). Ajoute un paquet par `pixi add <paquet>`, ou "
+                "`pixi add --pypi <paquet>` s'il manque aux canaux conda.")
+    if projet.gestionnaire == "uv":
+        return f"uv gère le projet ({projet.manifeste.name}). Ajoute un paquet par `uv add <paquet>`."
+    return (f"{projet.manifeste.name} ne déclare ni pixi ni uv. `pixi init --format pyproject` y ajoute pixi, le "
+            "gestionnaire conseillé. Demande à l'utilisateur avant.")
 
 
-def _ou(sources: list[Source]) -> str:
-    return ", ".join(sorted({s.ou for s in sources}))
-
-
-def contexte_agent(config: Configuration) -> str:
-    lignes = ["## Réseau du poste (marimo-agent-kit)", ""]
-    publics_uv = [s for s in config.depots_uv if not s.interne]
-    if config.mode == "public":
-        lignes.append("Mode public : le kit ne restreint pas le réseau. Les outils peuvent contacter le web.")
-    elif config.mode == "aucun":
-        lignes.append("Mode aucun : aucun accès réseau. uv ne lit que son cache (`UV_OFFLINE=1`) et ne télécharge pas "
-                      "de Python. Un paquet absent du cache ne s'installe pas.")
-    else:
-        lignes.append("Mode interne : seuls les dépôts internes ci-dessous sont contactés. Rien ne part sur le web public.")
-    lignes.append("")
-    if config.uv_en_ligne and config.depots_uv:
-        lignes.append(f"- Paquets Python : uv passe par {_hotes(config.depots_uv)}, déclaré dans {_ou(config.depots_uv)}.")
-    elif not config.uv_en_ligne:
-        if config.mode == "aucun" or config.uv_interne:
-            cause = "uv est hors ligne (`UV_OFFLINE=1`)"
-        elif publics_uv:
-            cause = f"uv consulte aussi un dépôt public ({_hotes(publics_uv)}, dans {_ou(publics_uv)}), donc le kit le coupe du réseau"
-        else:
-            cause = "uv n'a pas de dépôt interne déclaré, donc le kit le coupe du réseau"
-        lignes.append(f"- Paquets Python : {cause}. Il ne lit que son cache.")
-    if config.mode != "public":
-        if config.env.get("UV_PYTHON_DOWNLOADS") == "never":
-            lignes.append("- Python : uv ne télécharge aucun interpréteur. Utilise un Python déjà installé.")
-        else:
-            lignes.append(f"- Python : uv télécharge les interpréteurs depuis {_hotes(config.miroirs_python)}.")
-        permis, raison = config.pixi_permis()
-        if permis:
-            lignes.append(f"- Paquets conda : pixi passe par {_hotes(config.depots_pixi)}.")
-        else:
-            lignes.append(f"- Paquets conda : {raison}. Le kit n'exécute pas les notebooks en bac à sable pixi.")
+def contexte_agent(config: Configuration, projet: Projet | None = None) -> str:
+    lignes = ["## Paquets du projet (marimo-agent-kit)", "", f"- Paquets : {ligne_paquets(projet)}"]
     if config.resume_proxy():
         lignes.append(f"- Proxy : {config.resume_proxy()}.")
     certificats = [f"{nom}={valeur_affichable(nom, v)}" for nom in VARIABLES_CA if (v := config.env.get(nom))]
     if certificats:
         lignes.append("- Certificats : " + ", ".join(certificats) + ".")
-    if config.mode != "public":
-        lignes += [
-            "",
-            "À respecter :",
-            "1. Installe un paquet seulement par uv ou pixi, avec la configuration en place. Ne passe jamais "
-            "`--index-url`, `--extra-index-url` ni `--default-index`. N'utilise ni `pip install`, ni une source "
-            "`git+https`, ni `npx`.",
-            "2. Ne va pas chercher sur le web une page de documentation, un script ou un modèle. La documentation est "
-            "sur le poste : `mak api <symbole>` pour marimo et ses règles de lint (`mak api MB002`), `mak widgets` pour "
-            "wigglystuff, les dossiers `references/` des skills.",
-            "3. Si un paquet ou une page manque, arrête-toi et dis à l'utilisateur ce qui manque. Ne contourne pas.",
-        ]
-        options = [o for o, actif in (("--offline", config.env.get("UV_OFFLINE") == "1"),
-                                      ("--no-python-downloads", config.env.get("UV_PYTHON_DOWNLOADS") == "never")) if actif]
-        if options:
-            lignes.append(f"4. Les commandes uv et uvx que tu lances toi-même ne passent pas par le kit : ajoute-leur "
-                          f"{' et '.join(f'`{o}`' for o in options)}.")
+    lignes += [
+        "",
+        "À respecter :",
+        "1. Installe un paquet seulement par le gestionnaire du projet. Sa configuration choisit les dépôts : ne passe "
+        "ni `--index-url`, ni `--extra-index-url`, ni `--default-index`. N'utilise ni `pip install`, ni une source "
+        "`git+`, ni `npx`.",
+        "2. Lis la documentation de la version installée : `mak api <symbole>` pour marimo et ses règles de lint "
+        "(`mak api MB002`), `mak widgets` pour wigglystuff, les dossiers `references/` des skills.",
+        "3. Si un paquet ne s'installe pas, arrête-toi et dis à l'utilisateur ce qui manque. Ne contourne pas.",
+    ]
     if config.contexte:
-        lignes += ["", "Consignes du poste :", *[f"- {phrase}" for phrase in config.contexte]]
+        lignes += ["", "Consignes du projet :", *[f"- {phrase}" for phrase in config.contexte]]
     if config.problemes:
         lignes += ["", "Configuration à corriger (à signaler à l'utilisateur) :", *[f"- {p}" for p in config.problemes]]
     return "\n".join(lignes)
 
 
-def detail_configuration(config: Configuration) -> str:
-    lignes = [f"Mode réseau : {config.mode}", ""]
+def detail_configuration(config: Configuration, projet: Projet | None = None, marimo: list[str] | None = None) -> str:
+    lignes = []
     if config.fichiers:
         lignes.append("Fichiers lus, le dernier l'emportant :")
         lignes += [f"  {origine} : {chemin}" for origine, chemin in config.fichiers]
@@ -424,16 +276,9 @@ def detail_configuration(config: Configuration) -> str:
         lignes += ["", "Variables des fichiers :"]
         lignes += [f"  {nom}={valeur_affichable(nom, config.env.get(nom, ''))}  ← {origine}"
                    for nom, origine in sorted(config.origines.items())]
-    forcees = {nom: config.env[nom] for nom in ("UV_OFFLINE", "UV_PYTHON_DOWNLOADS", *ENV_SOBRE) if nom in config.env}
-    lignes += ["", "Posées par le kit sur ce qu'il lance :", *[f"  {nom}={valeur}" for nom, valeur in forcees.items()]]
-    for titre, sources in (("Dépôts uv", config.depots_uv), ("Miroirs de Python pour uv", config.miroirs_python),
-                           ("Dépôts pixi", config.depots_pixi)):
-        lignes.append("")
-        if sources:
-            lignes.append(f"{titre} :")
-            lignes += [f"  {'interne' if s.interne else 'PUBLIC '} {masquer(s.url)}  ← {s.ou}" for s in sources]
-        else:
-            lignes.append(f"{titre} : aucun déclaré.")
+    lignes += ["", "Posées par le kit sur ce qu'il lance :", *[f"  {nom}={valeur}" for nom, valeur in ENV_SOBRE.items()]]
+    lignes += ["", f"Projet : {projet.manifeste if projet else 'aucun'}", f"Paquets : {ligne_paquets(projet)}",
+               f"marimo : {' '.join(marimo) if marimo else 'pas dans un environnement du projet'}"]
     if config.problemes:
         lignes += ["", "À corriger :", *[f"  {p}" for p in config.problemes]]
     return "\n".join(lignes)

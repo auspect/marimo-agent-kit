@@ -5,11 +5,19 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest import mock
 
 ICI = Path(__file__).resolve().parent
 sys.path.insert(0, str(ICI.parent / "src"))
 
-from marimo_agent_kit.environnement import charger, contexte_agent, detail_configuration, lire_fichier_env  # noqa: E402
+from marimo_agent_kit.environnement import (  # noqa: E402
+    charger,
+    contexte_agent,
+    detail_configuration,
+    lanceur,
+    lire_fichier_env,
+    trouver_projet,
+)
 from marimo_agent_kit.hook import principal  # noqa: E402
 from marimo_agent_kit.installer import poser_hooks, poser_mcp  # noqa: E402
 
@@ -68,73 +76,50 @@ class FichierEnv(Poste):
         self.assertTrue(any("absent.env" in p for p in config.problemes))
 
 
-class Modes(Poste):
-    def test_interne_sans_depot_declare_coupe_uv(self):
-        config = self.charger()
-        self.assertEqual(config.mode, "interne")
-        self.assertEqual(config.env["UV_OFFLINE"], "1")
-        self.assertEqual(config.env["UV_PYTHON_DOWNLOADS"], "never")
-        self.assertEqual(config.env["MARIMO_SKIP_UPDATE_CHECK"], "1")
-        self.assertIn("`--offline` et `--no-python-downloads`", contexte_agent(config))
-
-    def test_interne_avec_depot_interne_laisse_uv_en_ligne(self):
+class Reseau(Poste):
+    def test_le_kit_laisse_le_reseau_aux_gestionnaires(self):
         config = self.charger(UV_DEFAULT_INDEX=INTERNE)
-        self.assertNotIn("UV_OFFLINE", config.env)
-        self.assertEqual(config.env["UV_PYTHON_DOWNLOADS"], "never")
-        self.assertIn("artifactory.exemple.interne", contexte_agent(config))
-
-    def test_un_depot_public_en_plus_coupe_uv(self):
-        config = self.charger(UV_DEFAULT_INDEX=INTERNE, UV_EXTRA_INDEX_URL="https://pypi.org/simple")
-        self.assertEqual(config.env["UV_OFFLINE"], "1")
-        self.assertIn("pypi.org", contexte_agent(config))
-
-    def test_miroir_python_interne(self):
-        config = self.charger(UV_DEFAULT_INDEX=INTERNE, UV_PYTHON_INSTALL_MIRROR="https://miroir.exemple.interne/pbs")
-        self.assertNotIn("UV_PYTHON_DOWNLOADS", config.env)
-
-    def test_aucun_et_public(self):
-        aucun = self.charger(MAK_RESEAU="aucun", UV_DEFAULT_INDEX=INTERNE)
-        self.assertEqual((aucun.env["UV_OFFLINE"], aucun.env["UV_PYTHON_DOWNLOADS"]), ("1", "never"))
-        self.assertFalse(aucun.pixi_permis()[0])
-        public = self.charger(MAK_RESEAU="public")
-        self.assertNotIn("UV_OFFLINE", public.env)
-        self.assertNotIn("UV_PYTHON_DOWNLOADS", public.env)
-        self.assertTrue(public.pixi_permis()[0])
-
-    def test_mode_inconnu_prend_le_plus_strict(self):
-        config = self.charger(MAK_RESEAU="ouvert")
-        self.assertEqual(config.mode, "aucun")
-        self.assertTrue(config.problemes)
+        for nom in ("UV_OFFLINE", "UV_PYTHON_DOWNLOADS"):
+            self.assertNotIn(nom, config.env)
+        self.assertEqual(config.env["UV_DEFAULT_INDEX"], INTERNE)
+        self.assertEqual(config.env["MARIMO_SKIP_UPDATE_CHECK"], "1")
 
 
-class Detection(Poste):
-    def test_uv_toml_de_l_utilisateur(self):
-        self.ecrire("accueil/.config/uv/uv.toml", f'# index-url = "https://pypi.org/simple"\n[[index]]\nname = "a"\n'
-                                                  f'url = "{INTERNE}"\ndefault = true\n'
-                                                  'python-install-mirror = "https://miroir.exemple.interne/pbs"\n')
-        config = self.charger()
-        self.assertEqual([s.url for s in config.depots_uv], [INTERNE])
-        self.assertTrue(config.uv_interne and config.python_interne)
-        self.assertNotIn("UV_OFFLINE", config.env)
+class Projets(Poste):
+    def test_gestionnaire_du_projet(self):
+        cas = {
+            "pixi.toml": ("[workspace]\nchannels = ['conda-forge']\n", "pixi"),
+            "pyproject.toml": ("[project]\nname = 'x'\n\n[tool.pixi.workspace]\nchannels = ['conda-forge']\n", "pixi"),
+        }
+        for nom, (texte, attendu) in cas.items():
+            with self.subTest(nom=nom):
+                manifeste = self.ecrire(f"{nom}/projet/{nom}", texte)
+                projet = trouver_projet(manifeste.parent / "notebooks")
+                self.assertEqual((projet.manifeste, projet.gestionnaire), (manifeste.resolve(), attendu))
+        self.ecrire("uv/pyproject.toml", "[project]\nname = 'x'\n")
+        self.assertIsNone(trouver_projet(self.racine / "uv").gestionnaire)
+        self.ecrire("uv/uv.lock", "")
+        self.assertEqual(trouver_projet(self.racine / "uv").gestionnaire, "uv")
 
-    def test_pyproject_seulement_dans_tool_uv(self):
-        self.ecrire("projet/pyproject.toml", '[project]\nurls = { home = "https://pypi.org/project/x" }\n\n'
-                                            f'[tool.uv]\nindex-url = "{INTERNE}"\n')
-        config = self.charger()
-        self.assertEqual([s.url for s in config.depots_uv], [INTERNE])
+    def test_contexte_donne_la_commande_du_gestionnaire(self):
+        self.assertIn("`pixi init --format pyproject`", contexte_agent(self.charger(), None))
+        self.ecrire("projet/pixi.toml", "[workspace]\n")
+        texte = contexte_agent(self.charger(), trouver_projet(self.projet))
+        self.assertIn("Paquets du projet", texte)
+        self.assertIn("`pixi add <paquet>`", texte)
+        self.assertIn("`pip install`", texte)
 
-    def test_miroir_pixi(self):
-        self.ecrire("accueil/.pixi/config.toml", '[mirrors]\n"https://conda.anaconda.org/conda-forge" = '
-                                                 '["https://artifactory.exemple.interne/api/conda/conda-forge"]\n')
-        config = self.charger()
-        self.assertTrue(config.pixi_interne)
-        self.assertTrue(config.pixi_permis()[0])
-        self.assertFalse(self.charger(MAK_RESEAU="aucun").pixi_permis()[0])
-
-    def test_sans_miroir_pixi(self):
-        permis, raison = self.charger().pixi_permis()
-        self.assertFalse(permis)
-        self.assertIn("miroir", raison)
+    def test_lanceur_prefere_l_environnement_pixi(self):
+        manifeste = self.ecrire("projet/pixi.toml", "[workspace]\n")
+        for env in (".pixi/envs/default", ".venv"):
+            for relatif in ("bin/marimo", "bin/python", "Scripts/marimo.exe", "Scripts/python.exe"):
+                self.ecrire(f"projet/{env}/{relatif}", "")
+        with mock.patch("marimo_agent_kit.environnement.shutil.which", return_value="pixi"):
+            self.assertEqual(lanceur("marimo", self.projet / "nb.py"),
+                             ["pixi", "run", "--manifest-path", str(manifeste.resolve()), "marimo"])
+            self.assertEqual(lanceur("python", self.projet)[-1], "python")
+        with mock.patch("marimo_agent_kit.environnement.shutil.which", return_value=None):
+            self.assertEqual(Path(lanceur("python", self.projet)[0]).parent.parent, (self.racine / "projet" / ".venv").resolve())
 
 
 class Secrets(Poste):
@@ -172,7 +157,7 @@ class Branchements(Poste):
                     self.assertEqual(principal(io.StringIO(json.dumps(entree)), evenement=evenement), 0)
                 reponse = json.loads(sortie.getvalue())
                 texte = reponse[cle]["additionalContext"] if cle == "hookSpecificOutput" else reponse[cle]
-                self.assertIn("Réseau du poste", texte)
+                self.assertIn("Paquets du projet", texte)
                 self.assertIn("Les données restent sur le partage.", texte)
 
     def test_installateur_pose_les_deux_hooks_une_fois(self):

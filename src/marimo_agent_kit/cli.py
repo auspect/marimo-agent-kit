@@ -100,20 +100,20 @@ def main(argv: list[str] | None = None) -> int:
     p = sous.add_parser("confidentialite", help="ce qui sort du poste avec marimo et son assistant, et quoi régler")
     p.add_argument("--json", action="store_true")
 
-    p = sous.add_parser("contexte", help="le réseau du poste et les consignes qui en découlent, pour l'agent")
-    p.add_argument("--detail", action="store_true", help="fichiers lus, origine de chaque variable, dépôts trouvés")
-    p.add_argument("--depuis", type=Path, help="notebook ou dossier d'où chercher mak.env et la configuration de uv")
+    p = sous.add_parser("contexte", help="le gestionnaire de paquets du projet et les consignes, pour l'agent")
+    p.add_argument("--detail", action="store_true", help="fichiers lus, origine de chaque variable, projet et marimo trouvés")
+    p.add_argument("--depuis", type=Path, help="notebook ou dossier d'où chercher mak.env et le projet")
 
-    p = sous.add_parser("marimo", help="lancer marimo avec l'environnement du pack, ex. mak marimo edit notebook.py")
+    p = sous.add_parser("marimo", help="lancer le marimo du projet avec l'environnement du kit, ex. mak marimo edit "
+                                       "notebook.py")
     p.add_argument("arguments", nargs=argparse.REMAINDER)
 
-    p = sous.add_parser("lancer", help="lancer une commande avec l'environnement du pack, ex. mak lancer -- safeagents …")
+    p = sous.add_parser("lancer", help="lancer une commande avec l'environnement du kit, ex. mak lancer -- safeagents …")
     p.add_argument("arguments", nargs=argparse.REMAINDER)
 
     p = sous.add_parser("garde", help="la garde avant outil : bilan de ce qu'elle a noté, ou essai d'une commande")
     p.add_argument("action", choices=["bilan", "essai"])
-    p.add_argument("cible", nargs="?", help="pour essai : la commande à juger, ou l'adresse pour --outil WebFetch")
-    p.add_argument("--outil", default="Bash", help="Bash (défaut), PowerShell, WebFetch ou WebSearch")
+    p.add_argument("cible", nargs="?", help="pour essai : la commande du shell à juger")
 
     sous.add_parser("mcp", help="serveur MCP en entrée/sortie standard")
 
@@ -126,9 +126,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dossier", type=Path, default=Path("."))
     p.add_argument("--skill", choices=["agents", "claude", "github"], help="où poser les skills")
     p.add_argument("--seulement", help="skills à poser, séparés par des virgules (défaut : tous)")
-    p.add_argument("--marimo", action="store_true", help="contrat et serveur MCP dans [tool.marimo] de pyproject.toml")
+    p.add_argument("--marimo", action="store_true", help="contrat, serveur MCP et gestionnaire de paquets (pixi par "
+                   "défaut) dans [tool.marimo] de pyproject.toml")
     p.add_argument("--hooks", nargs="?", const="claude", choices=["claude", "github"],
-                   help="relecture, contexte réseau et garde. claude (défaut) : .claude/settings.json, lu par Claude "
+                   help="relecture, contexte du projet et garde. claude (défaut) : .claude/settings.json, lu par Claude "
                         "Code et Copilot ; github : .github/hooks/, lu par Copilot seul")
     p.add_argument("--mcp", action="store_true", help="serveur MCP dans .mcp.json, lu par Claude Code et Copilot")
     p.add_argument("--source", help="d'où uvx installe le kit (chemin ou git+https://…#subdirectory=marimo-agent-kit)")
@@ -196,10 +197,11 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if args.nom and trouver(args.nom) is None else 0
 
     if args.commande == "contexte":
-        from .environnement import charger, contexte_agent, detail_configuration
+        from .environnement import charger, contexte_agent, detail_configuration, lanceur, trouver_projet
 
-        config = charger(args.depuis)
-        print(detail_configuration(config) if args.detail else contexte_agent(config))
+        config, projet = charger(args.depuis), trouver_projet(args.depuis)
+        print(detail_configuration(config, projet, lanceur("marimo", args.depuis)) if args.detail
+              else contexte_agent(config, projet))
         return 1 if config.problemes else 0
 
     if args.commande == "confidentialite":
@@ -220,16 +222,15 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.commande == "garde":
         from .environnement import charger
-        from .garde import bilan, juger, mode_garde
+        from .garde import bilan, juger_commande, mode_garde
 
         config = charger()
         if args.action == "bilan":
             print(bilan(config))
             return 0
-        champ = "url" if args.outil.lower() in ("webfetch", "web_fetch") else "query" if "search" in args.outil.lower() else "command"
-        refus = juger(args.outil, {champ: args.cible or ""}, config)
+        refus = juger_commande(args.cible or "")
         if not refus:
-            print(f"Passe (réseau {config.mode}, garde {mode_garde(config)}).")
+            print(f"Passe (garde {mode_garde(config)}).")
             return 0
         verbe = "Refusée" if mode_garde(config) == "agir" else "Serait refusée (mode observer)"
         print(f"{verbe} :\n" + "\n".join(f"  [{r.regle}] {r.raison}" for r in refus))

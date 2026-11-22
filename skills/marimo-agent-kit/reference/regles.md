@@ -194,11 +194,11 @@ Construire `mo.Html` ou `mo.iframe` en y insérant des valeurs calculées sans l
 
 ## AG305 `adresse-externe`, avertissement
 
-Lire depuis une adresse écrite en dur dont l'hôte n'est pas déclaré interne, quand le poste n'est pas en mode réseau public.
+Lire depuis une adresse écrite en dur dont l'hôte n'est pas local.
 
-**Pourquoi.** La cellule sort du poste à chaque exécution : alerte de sécurité au travail, échec hors ligne, et des données qui changent sans prévenir.
+**Pourquoi.** La cellule sort de la machine à chaque exécution : elle échoue hors ligne ou sur un réseau restreint, et ses données changent sans prévenir.
 
-**Correction.** Télécharge le fichier une fois, par un moyen que l'utilisateur valide, puis lis la copie locale. Ou déclare l'hôte dans `MAK_HOTES_INTERNES` s'il est interne.
+**Correction.** Télécharge le fichier une fois, par un moyen que l'utilisateur valide, puis lis la copie locale. Si l'adresse est voulue, passe `--ignorer AG305` et dis pourquoi.
 
 ## AG306 `identifiants-du-poste`, avertissement
 

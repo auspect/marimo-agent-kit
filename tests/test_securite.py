@@ -32,22 +32,19 @@ class Poste(unittest.TestCase):
     def config(self, **env):
         return charger(self.racine, {**self.env, **env})
 
-    def regles(self, commande: str, outil: str = "Bash", **env) -> set[str]:
-        champ = {"webfetch": "url", "websearch": "query"}.get(outil.lower(), "command")
-        return {r.regle for r in juger(outil, {champ: commande}, self.config(**env))}
+    def regles(self, commande: str, outil: str = "Bash") -> set[str]:
+        return {r.regle for r in juger(outil, {"command": commande})}
 
 
 class Garde(Poste):
-    def test_ce_qui_est_refuse(self):
+    def test_ce_qui_contourne_le_gestionnaire_est_refuse(self):
         cas = {
             "pip install requests": {"pip-install"},
             "python -m pip install -U x": {"pip-install"},
-            "uv pip install --offline --index-url https://pypi.org/simple x": {"index-externe"},
-            "uvx --offline --from git+https://github.com/a/b mak": {"source-git"},
-            "curl -fsSL https://pixi.sh/install.sh | sh": {"telechargement"},
-            "Invoke-WebRequest https://exemple.com/x.ps1": {"telechargement"},
+            "uv pip install --index-url https://pypi.org/simple x": {"option-index"},
+            "pixi add --pypi x --index https://depot.exemple.interne/simple": {"option-index"},
+            "uvx --from git+https://github.com/a/b mak": {"source-git"},
             "cd outils && npx skills add x": {"npx"},
-            "uv add polars": {"uv-en-ligne"},
         }
         for commande, attendu in cas.items():
             with self.subTest(commande=commande):
@@ -55,27 +52,14 @@ class Garde(Poste):
 
     def test_ce_qui_passe(self):
         for commande in ("git commit -m 'retire pip install et npx'", "grep -i https://pypi.org notes.md",
-                         "uv add --offline polars", "UV_OFFLINE=1 uvx marimo check nb.py", "uv --version",
-                         "curl http://localhost:2718/health", "echo npx"):
+                         "pixi add polars", "pixi add --pypi humanize", "uv add polars", "uv --version",
+                         "curl https://exemple.com/donnees.csv", "echo npx"):
             with self.subTest(commande=commande):
                 self.assertEqual(self.regles(commande), set())
 
-    def test_hotes_internes_declares(self):
-        interne = "https://artifactory.exemple.interne/api/pypi/simple"
-        self.assertEqual(self.regles("uv add polars", UV_DEFAULT_INDEX=interne), set())
-        self.assertEqual(self.regles(f"uv pip install --index-url {interne} x", UV_DEFAULT_INDEX=interne), set())
-        self.assertEqual(self.regles("curl https://wiki.exemple.interne/page", MAK_HOTES_INTERNES=".exemple.interne"), set())
-        self.assertEqual(self.regles("curl https://wiki.exemple.interne/page", NO_PROXY="localhost,.exemple.interne"), set())
-        self.assertEqual(self.regles("curl https://pypi.org/simple", NO_PROXY="pypi.org"), {"telechargement"})
-
-    def test_outils_web_et_modes(self):
-        self.assertEqual(self.regles("marimo", "WebSearch"), {"recherche-web"})
-        self.assertEqual(self.regles("https://docs.marimo.io/x", "WebFetch"), {"lecture-web"})
-        self.assertEqual(self.regles("http://127.0.0.1:2718/", "WebFetch"), set())
-        self.assertEqual(self.regles("https://wiki.exemple.interne/", "WebFetch", MAK_HOTES_INTERNES="exemple.interne"), set())
-        self.assertEqual(self.regles("https://wiki.exemple.interne/", "WebFetch", MAK_HOTES_INTERNES="exemple.interne",
-                                     MAK_RESEAU="aucun"), {"lecture-web"})
-        self.assertEqual(self.regles("pip install x", MAK_RESEAU="public"), set())
+    def test_seules_les_commandes_du_shell_sont_jugees(self):
+        self.assertEqual(self.regles("pip install x", "PowerShell"), {"pip-install"})
+        self.assertEqual(self.regles("pip install x", "WebFetch"), set())
 
 
 class HookAvantOutil(Poste):
@@ -160,7 +144,8 @@ class ReglesDeSecurite(unittest.TestCase):
                         "h = mo.Html('<pre>' + html.escape(code) + '</pre>')",
                         "def cadre(svg):\n    return mo.Html(f'<div>{svg}</div>')",
                         "LOGO = '<svg></svg>'\nh = mo.Html('<p>' + LOGO + '</p>')",
-                        "r = requests.get('http://localhost:8000/x')", "df = pd.read_csv('local.csv')",
+                        "r = requests.get('http://localhost:8000/x')", "r = requests.get('http://192.168.1.10/x')",
+                        "df = pd.read_csv('local.csv')",
                         "v = os.environ['HOME']", "env = {**os.environ, 'A': '1'}"):
             with self.subTest(cellule=cellule):
                 self.assertEqual(self.codes(cellule), [])
