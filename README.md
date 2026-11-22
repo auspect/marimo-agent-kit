@@ -379,6 +379,20 @@ uv run --no-project --with marimo --with polars python -m unittest discover -s t
 uvx ruff check .
 ```
 
+Le dépôt utilise [prek](https://prek.j178.dev) pour les contrôles avant commit et avant push. Le
+fichier `prek.toml` ne lance que des hooks livrés dans prek, donc sans téléchargement. Ils
+refusent l'en-tête PEM d'une clé privée, une clé d'API sans afficher sa valeur, et un fichier
+nommé `.env`, `mak.env`, `*.pem` ou `*.key`. Ils contrôlent aussi le JSON, le TOML, les fins de
+ligne et les espaces en fin de ligne, sans rien réécrire. Pose les hooks une fois par clone :
+
+```bash
+prek install --allow-missing-config
+prek run --all-files
+```
+
+L'option `--allow-missing-config` laisse passer les commits des branches qui n'ont pas encore
+`prek.toml`.
+
 Le kit est sous licence Apache-2.0. Les docs recopiées gardent leur licence. wigglystuff est sous
 MIT, voir `skills/wigglystuff/references/LICENSE-wigglystuff`. marimo-lens est sous Apache-2.0,
 voir `skills/marimo-lens/references/LICENSE-marimo-lens`.

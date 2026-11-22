@@ -1,0 +1,22 @@
+# Hooks intégrés (repo = "builtin") : 100 % hors ligne, aucun téléchargement.
+default_install_hook_types = ["pre-commit", "pre-push"]
+default_stages = ["pre-commit"]
+
+[[repos]]
+repo = "builtin"
+hooks = [
+  { id = "detect-private-key", stages = ["pre-commit", "pre-push"] },
+  { id = "replace-pattern", name = "bloquer-cles-api", description = "Bloque les clés d'API sans afficher leur valeur", args = ["--check", '(sk-ant-[A-Za-z0-9_-]{16,}|sk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35})', "REDACTED"], stages = ["pre-commit", "pre-push"] },
+  { id = "deny-filename-pattern", name = "bloquer-fichiers-sensibles", args = ['(?i)(^\.env(\.(?!example$|sample$|template$).+)?$|^mak\.env$|\.(pem|key|p12|pfx)$|^id_(rsa|ed25519|ecdsa)$)'], stages = ["pre-commit", "pre-push"] },
+  { id = "check-merge-conflict", args = ["--assume-in-merge"], stages = ["pre-commit", "pre-push"] },
+  { id = "check-added-large-files", args = ["--enforce-all", "--maxkb=500"], stages = ["pre-commit", "pre-push"] },
+  { id = "check-case-conflict" },
+  { id = "check-illegal-windows-names" },
+  { id = "forbid-new-submodules" },
+  { id = "check-json" },
+  { id = "check-toml" },
+  { id = "fix-byte-order-marker", args = ["--check"], exclude = '^skills/[^/]+/references/' },
+  { id = "mixed-line-ending", args = ["--fix=no"], exclude = '^skills/[^/]+/references/' },
+  { id = "end-of-file-fixer", args = ["--check"], exclude = '^skills/[^/]+/references/', stages = ["pre-commit"] },
+  { id = "trailing-whitespace", args = ["--check", "--markdown-linebreak-ext=md"], exclude = '^skills/[^/]+/references/', stages = ["pre-commit"] },
+]

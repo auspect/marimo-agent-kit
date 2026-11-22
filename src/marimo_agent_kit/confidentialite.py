@@ -180,4 +180,3 @@ def en_texte(constats: list[Constat], env: Mapping[str, str], version: str | Non
     lignes = [tete + " :", ""]
     lignes += [f"  [{c.etat}]{' ' * (largeur - len(c.etat))} {c.sujet}. {c.detail}" for c in constats]
     return "\n".join([*lignes, "", *lignes_a_poser(env)])
-
