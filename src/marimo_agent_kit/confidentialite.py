@@ -101,7 +101,8 @@ def diagnostiquer(env: Mapping[str, str], infos: dict | None) -> list[Constat]:
                                         f"conditions acceptées le {infos['consentement_new']} : l'invite part à ai.marimo.app"))
             else:
                 constats.append(Constat("info", 'marimo new "invite"',
-                                        "envoie l'invite à ai.marimo.app après accord : à éviter au travail"))
+                                        "envoie l'invite à ai.marimo.app après accord : à éviter quand rien ne doit "
+                                        "sortir du poste"))
     if env.get("PYDANTIC_AI_NO_BANNER") is None:
         constats.append(Constat("info", "bannière pydantic-ai", "PYDANTIC_AI_NO_BANNER=1 la masque (affichage seulement)"))
     constats.append(Constat("info", "navigateur", "unpkg et jsdelivr servent seulement l'autocomplétion d'emoji et "

@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("modele", help="nom du modèle tel que le point d'accès l'attend")
     p.add_argument("--cle-env", help="variable d'environnement qui contient la clé (jamais la clé elle-même)")
     p.add_argument("--entete", action="append", default=[], metavar="NOM:VALEUR", help="en-tête en plus (répétable)")
-    p.add_argument("--ca", help="fichier de certificats de l'entreprise (ca_bundle_path de marimo)")
+    p.add_argument("--ca", help="fichier de l'autorité de certification interne (ca_bundle_path de marimo)")
     p.add_argument("--sans-verification-tls", action="store_true", help="ne vérifier aucun certificat (essai seulement)")
     p.add_argument("--nom", default="interne", help="nom du fournisseur dans marimo")
     p.add_argument("--delai", type=int, default=60)

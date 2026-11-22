@@ -7,6 +7,8 @@ repo = "builtin"
 hooks = [
   { id = "detect-private-key", stages = ["pre-commit", "pre-push"] },
   { id = "replace-pattern", name = "bloquer-cles-api", description = "Bloque les clés d'API sans afficher leur valeur", args = ["--check", '(sk-ant-[A-Za-z0-9_-]{16,}|sk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35})', "REDACTED"], stages = ["pre-commit", "pre-push"] },
+  # Dépôt public : le motif liste les tournures retirées du dépôt. Les crochets évitent qu'il se trouve lui-même.
+  { id = "replace-pattern", alias = "depot-public", name = "depot-public", description = "Refuse les tournures retirées du dépôt public", args = ["--check", '(?i)(au tr[a]vail|lieu de tr[a]vail|poste de tr[a]vail|entrepr[i]se|poste ferm[eé]|coll[eè]gue|employeu[r]|\bpa[c]k\b|\bto[i]\b)', "REDACTED"], exclude = '^skills/[^/]+/references/', stages = ["pre-commit", "pre-push"] },
   { id = "deny-filename-pattern", name = "bloquer-fichiers-sensibles", args = ['(?i)(^\.env(\.(?!example$|sample$|template$).+)?$|^mak\.env$|\.(pem|key|p12|pfx)$|^id_(rsa|ed25519|ecdsa)$)'], stages = ["pre-commit", "pre-push"] },
   { id = "check-merge-conflict", args = ["--assume-in-merge"], stages = ["pre-commit", "pre-push"] },
   { id = "check-added-large-files", args = ["--enforce-all", "--maxkb=500"], stages = ["pre-commit", "pre-push"] },

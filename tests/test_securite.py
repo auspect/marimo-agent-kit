@@ -111,7 +111,7 @@ class Safeagents(Poste):
         self.assertEqual([c.etat for c in constats_safeagents(self.config(), infos)], ["info"])
         self.assertEqual(constats_safeagents(self.config(), {"fournisseurs": {}}), [])
 
-    def test_lancer_donne_l_environnement_du_pack(self):
+    def test_lancer_donne_l_environnement_du_kit(self):
         from marimo_agent_kit import cli
 
         sortie = self.racine / "env.txt"

@@ -766,7 +766,7 @@ CHEMIN_ABSOLU = re.compile(r"^(/home/|/Users/|/tmp/|/mnt/|/var/|/opt/|[A-Za-z]:[
 
 @regle("AG208", "chemin-absolu", "conseil",
        "Écrire un chemin absolu propre à une machine, comme `/home/...`, `C:\\...` ou `/tmp/...`.",
-       "Le notebook ne tournera pas ailleurs, ni dans un bac à sable, ni chez un collègue.",
+       "Le notebook ne tournera pas ailleurs, ni dans un bac à sable, ni sur une autre machine.",
        "Pars du dossier du notebook, par exemple `mo.notebook_dir() / \"donnees\" / \"fichier.csv\"`.")
 def _chemin(carnet: Carnet, ctx: Contexte):
     for cellule in cellules_de_code(carnet):

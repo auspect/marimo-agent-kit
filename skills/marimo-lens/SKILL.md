@@ -22,7 +22,7 @@ corrige, vérifie, puis remet le résultat sous les yeux de l'analyste.
 | Situation | Lens | Raison |
 |---|---|---|
 | "Ce pic, d'où vient-il ?", "Cette ligne est fausse." | Oui | Montrer la sortie est plus précis que la décrire. Lens remonte à la cellule qui l'a produite. |
-| Expliquer un notebook à un collègue, étape par étape | Oui | Une visite, appelée Trail, révèle les cellules clés avec un message chacune. |
+| Expliquer un notebook à un lecteur, étape par étape | Oui | Une visite, appelée Trail, révèle les cellules clés avec un message chacune. |
 | Relire un graphique ou un tableau de bord | Oui | L'analyste pose plusieurs sélections. L'agent les traite, puis les résout avec un résumé. |
 | La demande se dit bien en mots, par exemple "renomme la colonne" | Non | Le chat suffit. |
 | Aucun agent ne tourne dans le noyau, ou la page est exportée | Non | Lens n'agit pas seul. Il lui faut marimo pair ou le Code Mode de l'assistant. |

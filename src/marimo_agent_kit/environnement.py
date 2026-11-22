@@ -256,7 +256,7 @@ def contexte_agent(config: Configuration, projet: Projet | None = None) -> str:
         "`git+`, ni `npx`.",
         "2. Lis la documentation de la version installée : `mak api <symbole>` pour marimo et ses règles de lint "
         "(`mak api MB002`), `mak widgets` pour wigglystuff, les dossiers `references/` des skills.",
-        "3. Si un paquet ne s'installe pas, arrête-toi et dis à l'utilisateur ce qui manque. Ne contourne pas.",
+        "3. Si un paquet ne s'installe pas, ne contourne pas : dis à l'utilisateur ce qui manque.",
     ]
     if config.contexte:
         lignes += ["", "Consignes du projet :", *[f"- {phrase}" for phrase in config.contexte]]

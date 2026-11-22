@@ -216,7 +216,7 @@ script.
 ### Brancher un LLM interne dans l'assistant de marimo
 
 marimo appelle un fournisseur personnalisé par l'API OpenAI `/chat/completions`. Il envoie la
-clé dans les en-têtes `Authorization` et `api-key`. La sonde rejoue contre ton point d'accès les
+clé dans les en-têtes `Authorization` et `api-key`. La sonde rejoue contre le point d'accès les
 quatre requêtes que marimo 0.25.2 envoie :
 
 - le chat en mode Manual ;
@@ -227,7 +227,7 @@ quatre requêtes que marimo 0.25.2 envoie :
 La sonde dit ensuite quelles fonctions marcheront et affiche le bloc de configuration.
 
 ```bash
-mak sonde-llm https://llm.interne/v1 mon-modele --cle-env LLM_INTERNE_CLE --ca /chemin/ca-entreprise.pem
+mak sonde-llm https://llm.interne/v1 mon-modele --cle-env LLM_INTERNE_CLE --ca /chemin/ca-interne.pem
 ```
 
 L'environnement qui lance marimo a besoin de `pydantic-ai-slim[openai]`, que l'extra
@@ -340,12 +340,12 @@ sur le poste : safeagents se place donc entre lui et le LLM interne. Le projet e
 1. Construis la roue d'un commit que tu as relu, sur un poste qui a le droit d'aller sur GitHub.
    Dépose-la sur le dépôt interne, puis installe-la depuis lui par `uv tool install safeagents`.
    Le 15 novembre 2026, le commit `a8ee22d` a été essayé sous Windows avec un faux modèle.
-2. Lance-le avec l'environnement du pack, pour qu'il passe par le proxy et lise l'autorité de
+2. Lance-le avec l'environnement du kit, pour qu'il passe par le proxy et lise l'autorité de
    certification. Garde son journal hors du dépôt, car il contient les arguments des appels.
    N'active aucun greffon `hf://`, car un greffon s'exécute dans le proxy.
 
    ```bash
-   mak lancer -- safeagents https://llm.entreprise.local 8790 --journal ~/journaux/safeagents.jsonl
+   mak lancer -- safeagents https://llm.exemple.interne 8790 --journal ~/journaux/safeagents.jsonl
    ```
 
 3. Fais pointer le fournisseur personnalisé de marimo sur `http://127.0.0.1:8790/v1`, et garde
@@ -392,8 +392,11 @@ uvx ruff check .
 Le dépôt utilise [prek](https://prek.j178.dev) pour les contrôles avant commit et avant push. Le
 fichier `prek.toml` ne lance que des hooks livrés dans prek, donc sans téléchargement. Ils
 refusent l'en-tête PEM d'une clé privée, une clé d'API sans afficher sa valeur, et un fichier
-nommé `.env`, `mak.env`, `*.pem` ou `*.key`. Ils contrôlent aussi le JSON, le TOML, les fins de
-ligne et les espaces en fin de ligne, sans rien réécrire. Pose les hooks une fois par clone :
+nommé `.env`, `mak.env`, `*.pem` ou `*.key`. Le dépôt est public : le hook `depot-public` refuse
+les tournures sur un cadre professionnel ou adressées à l'auteur, que liste `prek.toml`, et
+`prek run depot-public --all-files` relance cette recherche. Les hooks contrôlent aussi le JSON, le
+TOML, les fins de ligne et les espaces en fin de ligne, sans rien réécrire. Pose les hooks une
+fois par clone :
 
 ```bash
 prek install --allow-missing-config

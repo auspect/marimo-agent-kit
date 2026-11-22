@@ -62,7 +62,7 @@ class FichierEnv(Poste):
         self.ecrire("accueil/.config/marimo-agent-kit/mak.env",
                     "HTTPS_PROXY=http://proxy.utilisateur:8080\nOUTIL=utilisateur\nMAK_CONTEXTE=phrase un\n")
         self.ecrire("projet/mak.env", "OUTIL=projet\nMAK_CONTEXTE=phrase deux\n")
-        explicite = self.ecrire("pack.env", "OUTIL=explicite\nDEJA=fichier\n")
+        explicite = self.ecrire("explicite.env", "OUTIL=explicite\nDEJA=fichier\n")
         config = self.charger(MAK_CONFIG=str(explicite), DEJA="shell")
         self.assertEqual(config.env["HTTPS_PROXY"], "http://proxy.utilisateur:8080")
         self.assertEqual(config.env["OUTIL"], "explicite")
