@@ -1,0 +1,91 @@
+---
+title: "Seattle, ville de la pluie ?"
+subtitle: "Ce que disent les relevés quotidiens de la NOAA"
+author: "Notebook marimo meteo.py"
+abstract: |
+  Seattle a la réputation d'une ville où il pleut sans arrêt. Cet article
+  confronte la réputation aux relevés : combien de jours de pluie, à quelle
+  saison, et avec quelle intensité.
+lang: fr
+format:
+  html:
+    theme: [cosmo, article.scss]
+    toc: true
+    toc-title: "Dans cet article"
+    toc-location: left
+    reference-location: margin
+    page-layout: article
+    smooth-scroll: true
+    include-in-header:
+      text: |
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&display=swap">
+---
+
+::: {.callout-note appearance="simple"}
+## Réglages de lecture
+
+Les chiffres de cet article suivent les deux réglages ci-dessous. Changez
+l'année ou le seuil : le texte, les chiffres et les graphiques se mettent à
+jour.
+
+{{< marimo cell="controles" >}}
+
+:::
+
+## La réponse courte
+
+{{< marimo value="donnees_vues.messages.chapeau" >}}
+{{< marimo value="donnees_vues.messages.hauteur" >}}
+
+Un jour compte ici comme pluvieux s'il reçoit au moins
+{{< marimo value="donnees_vues.synthese.seuil" >}} de pluie. Pour ses
+statistiques climatiques, l'Organisation météorologique mondiale retient le
+seuil de 1 mm.^[Avec le plus bas des seuils proposés, une simple bruine suffit
+et la part des jours de pluie monte nettement. Le réglage le montre.]
+
+## Une affaire de saison
+
+{{< marimo value="donnees_vues.messages.saison" >}}
+
+{{< marimo output="graphique_saison" >}}
+
+::: {.column-margin}
+**Lire le graphique.** Chaque barre donne, pour un mois, la part des jours qui
+atteignent le seuil, toutes années retenues confondues.
+:::
+
+## Souvent, mais peu à la fois
+
+{{< marimo value="donnees_vues.messages.intensite" >}}
+
+{{< marimo output="graphique_pluie" >}}
+
+::: {.callout-tip appearance="simple"}
+## À retenir
+
+{{< marimo value="donnees_vues.messages.series" >}}
+:::
+
+## D'une année à l'autre
+
+L'année la plus humide de la série est
+{{< marimo value="donnees_vues.synthese.annee_plus_humide" >}}, la plus sèche
+{{< marimo value="donnees_vues.synthese.annee_plus_seche" >}}. Le détail par
+année est dans le notebook, cellule `par_annee`.
+
+## Méthode et source
+
+Les relevés viennent de la NOAA, par le jeu `seattle-weather` de
+vega-datasets. Ils couvrent la période
+{{< marimo value="donnees_vues.messages.periode" >}}. Tous les calculs sont faits
+dans le notebook marimo `meteo.py`. Cet article les met en page sans recopier
+un seul chiffre.
+
+::: {.callout-warning appearance="simple"}
+## Une série courte
+
+Quelques années ne font pas une normale climatique, qui se calcule sur trente
+ans. Les comparaisons avec d'autres villes demandent la même période et le
+même seuil.
+:::

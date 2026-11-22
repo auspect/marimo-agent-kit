@@ -1,0 +1,43 @@
+/*-- scss:defaults --*/
+$body-bg: #f6f4ef;
+$body-color: #36414b;
+$headings-color: #17202a;
+$link-color: #2b5f9f;
+$font-family-sans-serif: "Inter", ui-sans-serif, system-ui, sans-serif;
+$headings-font-family: "Fraunces", Georgia, "Times New Roman", serif;
+$headings-font-weight: 650;
+$font-size-root: 17px;
+$callout-color-note: #2b5f9f;
+$callout-color-tip: #3f7f5f;
+$callout-color-warning: #c8553d;
+
+/*-- scss:rules --*/
+.quarto-title .title {
+  font-size: clamp(2.2rem, 6vw, 3.6rem);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.quarto-title .subtitle {
+  color: #6b7680;
+  font-style: italic;
+}
+
+h2 {
+  margin-top: 2.4rem;
+  letter-spacing: -0.01em;
+  border-bottom: none;
+}
+
+[mo-value] {
+  font-weight: 600;
+  color: #17202a;
+}
+
+marimo-cell,
+marimo-output {
+  display: block;
+  margin-block: 1.2rem;
+  --marimo-cell-font: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --marimo-cell-accent: #2b5f9f;
+}

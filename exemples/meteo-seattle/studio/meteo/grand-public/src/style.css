@@ -1,0 +1,197 @@
+:root {
+  color-scheme: light;
+  --papier: #f6f4ef;
+  --encre: #17202a;
+  --texte: #36414b;
+  --discret: #6b7680;
+  --filet: #dcd8cf;
+  --sec: #e6e1d6;
+  --pluie-1: #d3e3f3;
+  --pluie-2: #93b9df;
+  --pluie-3: #5389c6;
+  --pluie-4: #2b5f9f;
+  --pluie-5: #163866;
+  --volume: #c8553d;
+  --titre: "Fraunces", Georgia, "Times New Roman", serif;
+  --corps: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--corps);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--papier);
+  color: var(--texte);
+  line-height: 1.55;
+}
+
+.page {
+  width: min(100% - 2.5rem, 68rem);
+  margin-inline: auto;
+  padding-bottom: 4rem;
+}
+
+.reglages {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-inline: -1.25rem;
+  padding: 0.6rem 1.25rem;
+  background: color-mix(in srgb, var(--papier) 92%, transparent);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--filet);
+  --marimo-cell-font: var(--corps);
+  --marimo-cell-accent: var(--pluie-4);
+}
+
+.une {
+  padding-block: clamp(2.5rem, 8vw, 5.5rem) 2.5rem;
+}
+
+.surtitre {
+  margin: 0 0 1rem;
+  color: var(--discret);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  font-family: var(--titre);
+  color: var(--encre);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  margin: 0;
+  max-width: 16ch;
+  font-size: clamp(2.4rem, 7vw, 4.6rem);
+  line-height: 1.02;
+}
+
+.chapeau {
+  max-width: 42rem;
+  margin: 1.4rem 0 2.4rem;
+  font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+}
+
+.chiffres {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.chiffre {
+  padding-top: 0.8rem;
+  border-top: 2px solid var(--encre);
+}
+
+.chiffre strong {
+  display: block;
+  font-family: var(--titre);
+  font-size: clamp(1.7rem, 4vw, 2.6rem);
+  font-weight: 500;
+  color: var(--encre);
+  line-height: 1.1;
+}
+
+.chiffre span {
+  color: var(--discret);
+  font-size: 0.92rem;
+}
+
+.bloc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  align-items: start;
+  padding-block: 3rem;
+  border-top: 1px solid var(--filet);
+}
+
+.bloc.large {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.bloc.large .texte {
+  max-width: 44rem;
+}
+
+h2 {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.6rem, 3.4vw, 2.2rem);
+  line-height: 1.1;
+}
+
+.texte p {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.pied {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--filet);
+  color: var(--discret);
+  font-size: 0.88rem;
+}
+
+.pied a {
+  color: var(--pluie-4);
+}
+
+.attente,
+.erreur {
+  padding: 3rem 0;
+  font-size: 1.1rem;
+}
+
+.erreur {
+  color: var(--volume);
+}
+
+marimo-cell,
+marimo-output {
+  display: block;
+  min-width: 0;
+}
+
+@media (max-width: 52rem) {
+  .chiffres {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bloc {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: 2.2rem;
+  }
+
+  .intensite-entete,
+  .intensite-ligne {
+    grid-template-columns: 6.5rem minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .calendrier svg {
+    min-width: 36rem;
+  }
+
+  .mois {
+    gap: 0.15rem;
+  }
+
+  .mois-colonne {
+    grid-template-rows: 9rem;
+  }
+
+  .mois-valeur,
+  .mois-nom {
+    font-size: 0.62rem;
+  }
+}

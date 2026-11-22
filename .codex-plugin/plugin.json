@@ -1,7 +1,7 @@
 {
   "name": "marimo-agent-kit",
   "version": "0.7.0",
-  "description": "Écrire, vérifier et rendre lisibles des notebooks marimo avec un agent, avec les widgets wigglystuff et marimo-lens.",
+  "description": "Écrire, vérifier et rendre lisibles des notebooks marimo avec un agent, avec les widgets wigglystuff, marimo-lens et des vues marimo Studio.",
   "author": {
     "name": "auspect"
   },

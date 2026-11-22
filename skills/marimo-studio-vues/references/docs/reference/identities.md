@@ -1,0 +1,114 @@
+<!-- marimo-studio 0.4.1, recopié de docs/reference/identities.md (Apache-2.0) -->
+---
+title: Identities and state
+description: Stable names, revisions, generations, runtime identities, and state mappings.
+---
+
+# Identities and state
+
+Studio binds every mutation, build, and presentation to the state it
+observed. Names identify durable product objects, revisions identify content,
+and generations identify replaceable owners and incarnations. The
+[glossary](glossary.md) defines the product objects themselves.
+
+## Stable names
+
+| Identity           | Format                                                                              | Lifetime                                          |
+| ------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------- |
+| View name          | Lowercase letter followed by lowercase letters, digits, or hyphens                  | Stable until the view is renamed or removed       |
+| Provider key       | Canonical distribution plus entry-point registration, such as `marimo-studio/react` | Preserved by Studio Source mutations for one view |
+| Starter ID         | Provider key plus local starter key, such as `marimo-studio/react:reveal`           | Used during creation and not persisted            |
+| Cell target        | Native cell name or Studio cell alias                                               | Stable while the notebook name or binding remains |
+| Value selector     | Variable name plus permitted attribute and item steps                               | Resolves against the current notebook namespace   |
+| Projection site ID | Lowercase artifact-local ID with at most 128 characters                             | Stable for one authored source site               |
+
+## Content revisions
+
+| Revision              | Identifies                                                                                   | Changes when                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Source revision       | Exact UTF-8 Source document content                                                          | The document bytes change. Public values use `sha256:<digest>`                         |
+| Notebook revision     | Provider-visible static notebook record                                                      | Cell source, names, configuration, definitions, references, or dependency edges change |
+| Project revision      | Complete normalized build-input snapshot plus provider provenance                            | A declared build input or provider build identity changes                              |
+| Artifact revision     | Complete validated browser file tree and projection declarations                             | Any published artifact file or projection site changes                                 |
+| Presentation revision | Selected view, saved notebook and configuration, build profile, and artifact                 | Any input to the delivered presentation changes                                        |
+| Projection revision   | Presentation projection targets, policy, runtime bindings, diagnostics, and runtime instance | Projection authorization or runtime binding state changes                              |
+
+An artifact revision stays current across repeated builds that produce a
+byte-identical browser file tree and the same projection declarations. Development and production profiles can
+publish the same artifact revision and still keep separate build attempt and
+publication state.
+
+## Ownership generations
+
+| Generation         | Identifies                                                               | Used by                                          |
+| ------------------ | ------------------------------------------------------------------------ | ------------------------------------------------ |
+| Catalog generation | Studio configuration plus the current set of named view incarnations     | Workspace mutation admission                     |
+| View generation    | Durable owner of one name joined with the current view project directory | View write, build, export, and removal admission |
+
+Both generations are opaque 64-character lowercase hexadecimal strings. Read
+them from `status`, `view read --json`, or the Python handles that return them.
+Do not construct or persist them as long-term identifiers.
+
+`view write` checks the source revision, catalog generation, and view
+generation immediately before commit. A failed check preserves the current
+file and returns a conflict. Read the current source and retry from that state.
+[Errors and JSON](errors-and-json.md#public-error-classes) lists the conflict
+codes.
+
+Removing a view terminates its view generation. Renaming a view terminates the
+old name's generation and starts a generation for the new name. Recreating a
+name creates a new view generation. Existing Python `View` handles remain bound
+to the incarnation they observed.
+
+## Runtime and browser identities
+
+| Identity               | Scope                                                                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime instance       | One mounted notebook runtime configuration                                                                                             |
+| Runtime session ID     | One Python runtime session. Browser runtimes have no server session ID                                                                 |
+| Browser client ID      | One connected Studio tab                                                                                                               |
+| Presentation session   | One browser admission to a presentation revision                                                                                       |
+| Projection instance ID | One active element in the browser [DOM](https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model) at one projection site |
+
+The browser document exposes its committed presentation revision as
+`data-marimo-studio-revision` on `<html>`, beside `data-marimo-studio-state`.
+An exact preview URL rejects a different presentation revision or unbuilt or
+failed view source, even when a previous artifact is retained.
+
+## Workspace state
+
+`StudioOverview.state` and `marimo-studio status --json` use these values:
+
+| State          | Meaning                                                                          |
+| -------------- | -------------------------------------------------------------------------------- |
+| `unconfigured` | The notebook has no Studio configuration                                         |
+| `needs-view`   | Studio configuration exists and the default view project still needs creation    |
+| `ready`        | The configured workspace has at least one valid view and its default view exists |
+
+## Build freshness
+
+`ViewInspection.freshness` and `view inspect --json` report development build
+freshness:
+
+| Freshness  | Current source        | Retained artifact | Meaning                                                                                     |
+| ---------- | --------------------- | ----------------- | ------------------------------------------------------------------------------------------- |
+| `current`  | Matches               | Present           | The development artifact was built from the current project revision                        |
+| `stale`    | Newer or invalid      | Present           | Preview can retain the last successful artifact while source needs another successful build |
+| `unbuilt`  | Present               | Absent            | Current source has no successful development artifact                                       |
+| `building` | Build in progress     | Optional          | Studio is preparing a candidate from the current snapshot                                   |
+| `failed`   | Latest attempt failed | Absent            | No successful development artifact is available                                             |
+
+`ViewInspection.build` describes the retained successful artifact and stays
+present when `freshness` is `stale`.
+
+## Projection state
+
+Hosts use `connecting`, `loading`, `stale`, `ready`, `missing`, and
+`error`. See [Notebook result projections](projections.md#host-lifecycle) for
+DOM attributes and events.
+
+## Validation state
+
+Validation levels are cumulative.
+[`marimo-studio validate`](cli.md#marimo-studio-validate) lists the evidence
+each level requires.

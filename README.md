@@ -5,7 +5,7 @@ Copilot, OpenCode, Codex et l'assistant intégré de marimo. Il contient ces él
 
 - un contrat d'écriture, et des contrôles qui trouvent ce que `marimo check` ne voit pas ;
 - l'API de marimo lue dans la version installée ;
-- trois skills, `marimo-agent-kit`, `wigglystuff` et `marimo-lens` ;
+- quatre skills, `marimo-agent-kit`, `wigglystuff`, `marimo-lens` et `marimo-studio-vues` ;
 - un rapport qui s'affiche dans le notebook lui-même ;
 - deux commandes pour brancher un LLM interne sans rien laisser sortir du poste ;
 - pixi comme gestionnaire de paquets par défaut : le bouton d'installation de l'éditeur ajoute
@@ -56,7 +56,7 @@ seul avertissement. C'est un `AG304` sur un tableau HTML assemblé à partir de 
 | `mak widgets` | Tout agent | Affiche la doc de wigglystuff 0.6.0 sans réseau et la compare à la version installée. |
 | `mak regles` | L'assistant de marimo, les agents | Affiche le contrat de quatorze règles que `[tool.marimo.ai] rules` transmet à l'assistant. |
 | `mak mcp` | L'assistant de marimo en modes Ask et Agent, Claude Code, Copilot | Sert six outils MCP. |
-| `skills/` | Les agents qui lisent des skills | Contient `marimo-agent-kit`, `wigglystuff` et `marimo-lens`. |
+| `skills/` | Les agents qui lisent des skills | Contient `marimo-agent-kit`, `wigglystuff`, `marimo-lens` et `marimo-studio-vues`. |
 | `mak hook` | Claude Code, Copilot | Vérifie chaque notebook que l'agent écrit. Une erreur bloque l'agent, un avertissement lui est signalé. Au démarrage, donne le gestionnaire de paquets du projet et ses consignes. |
 | `mak.audit()` | L'utilisateur, dans le notebook | Affiche le rapport et le message à renvoyer à l'agent. |
 | `mak sonde-llm`, `mak confidentialite` | L'utilisateur | Testent ce qu'un LLM interne accepte, et ce qui sort du poste. |
@@ -134,7 +134,7 @@ mak installer --skill agents --marimo --hooks --appliquer
 
 Les options choisissent ce que l'installateur pose :
 
-- `--skill agents`, `--skill claude` ou `--skill github` pose les trois skills dans `.agents/skills/`,
+- `--skill agents`, `--skill claude` ou `--skill github` pose les quatre skills dans `.agents/skills/`,
   `.claude/skills/` ou `.github/skills/`. `--seulement wigglystuff,marimo-lens` restreint la liste.
 - `--marimo` ajoute à `pyproject.toml` le contrat, le serveur MCP et
   `[tool.marimo.package_management] manager = "pixi"`, ou `"uv"` dans un projet uv. Le serveur
@@ -212,6 +212,27 @@ Les deux docs viennent du commit de la version publiée. La branche principale d
 décrit déjà des fonctions qui ne sont pas publiées. Les scripts `outils/importer_wigglystuff.py`
 et `outils/importer_marimo_lens.py` régénèrent ces docs. Leur mode d'emploi est en tête de chaque
 script.
+
+### Restitutions avec marimo Studio
+
+Le skill `marimo-studio-vues` fait d'une analyse plusieurs restitutions pour des publics
+différents, avec marimo Studio 0.4.1 : une page React, un diaporama reveal.js, un rapport PDF
+Typst et un article Quarto. Il dit comment structurer le notebook pour qu'il serve toutes les
+vues, comment les construire, les regarder et les exporter en site statique, en PDF et en PPTX.
+Il donne quatorze critères de qualité et deux scripts : `capturer.py` capture une vue dans un vrai
+navigateur, `controler_vues.py` relit les sources des vues.
+
+Il embarque les 34 pages de la doc de marimo-studio 0.4.1 et huit fichiers d'exemples officiels,
+que `outils/importer_marimo_studio.py` régénère. Le mode d'emploi pour agents reste celui du
+paquet, que cette commande affiche :
+
+```bash
+uvx --with marimo-studio agent-plugins read marimo-studio
+```
+
+L'exemple `exemples/meteo-seattle/` sert de référence : un notebook sur la pluie à Seattle et ses
+quatre vues, avec un `pixi.toml` qui installe Quarto et Typst depuis conda-forge. Sous Windows, il
+contourne la limite de 260 caractères des chemins, que Studio dépasse sans réglage.
 
 ### Brancher un LLM interne dans l'assistant de marimo
 
@@ -379,8 +400,11 @@ amont, avec ou sans `/v1`, n'a pas été vérifiée : la sonde le dira.
   s'ajoute à la main par `pixi add --pypi`.
 - Huit widgets wigglystuff chargent du JavaScript depuis un CDN dans le navigateur. Le skill
   `wigglystuff` les écarte sur un réseau restreint, mais le kit ne le contrôle pas.
-- Le kit vise marimo 0.25.2, wigglystuff 0.6.0 et marimo-lens 0.2.4. `marimo._code_mode` et les
-  outils de l'assistant changent d'une version à l'autre.
+- Le kit vise marimo 0.25.2, wigglystuff 0.6.0, marimo-lens 0.2.4 et marimo-studio 0.4.1.
+  `marimo._code_mode`, les outils de l'assistant et l'API de Studio changent d'une version à
+  l'autre.
+- Studio 0.4.1 n'exporte ni PPTX, ni page interactive en un seul fichier. Le skill
+  `marimo-studio-vues` donne le chemin essayé pour chacun.
 
 ## Développer
 
@@ -408,4 +432,6 @@ L'option `--allow-missing-config` laisse passer les commits des branches qui n'o
 
 Le kit est sous licence Apache-2.0. Les docs recopiées gardent leur licence. wigglystuff est sous
 MIT, voir `skills/wigglystuff/references/LICENSE-wigglystuff`. marimo-lens est sous Apache-2.0,
-voir `skills/marimo-lens/references/LICENSE-marimo-lens`.
+voir `skills/marimo-lens/references/LICENSE-marimo-lens`. marimo-studio est sous Apache-2.0, voir
+`skills/marimo-studio-vues/references/LICENSE-marimo-studio`. Les relevés météo de l'exemple sont
+dans le domaine public, voir `exemples/meteo-seattle/public/SOURCE.md`.

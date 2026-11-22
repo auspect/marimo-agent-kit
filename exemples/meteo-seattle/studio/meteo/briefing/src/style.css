@@ -1,0 +1,336 @@
+:root {
+  color-scheme: light;
+  --papier: #f6f4ef;
+  --nuit: #142130;
+  --encre: #17202a;
+  --texte: #36414b;
+  --discret: #6b7680;
+  --filet: #dcd8cf;
+  --titre: "Fraunces", Georgia, "Times New Roman", serif;
+  --corps: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+html,
+body,
+#app-shell {
+  width: 100%;
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--papier);
+}
+
+#app-shell {
+  min-height: 100%;
+}
+
+.reveal.studio-deck {
+  --r-background-color: var(--papier);
+  --r-main-color: var(--texte);
+  --r-heading-color: var(--encre);
+  --r-link-color: var(--pluie-4);
+  --r-main-font: var(--corps);
+  --r-heading-font: var(--titre);
+  --r-heading-font-weight: 650;
+  --r-heading-letter-spacing: -0.02em;
+  font-size: 26px;
+}
+
+.reveal.studio-deck .slides {
+  text-align: left;
+}
+
+.reveal.studio-deck .slides section {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 64px 84px 56px;
+}
+
+.reveal.studio-deck,
+.reveal-viewport {
+  background: var(--papier);
+  font-family: var(--corps);
+  color: var(--texte);
+}
+
+.reveal.studio-deck h1,
+.reveal.studio-deck h2 {
+  margin: 0 0 36px;
+  font-family: var(--titre);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--encre);
+  text-transform: none;
+  line-height: 1.06;
+}
+
+.reveal.studio-deck h1 {
+  font-size: 96px;
+  max-width: 10ch;
+}
+
+.reveal.studio-deck h2 {
+  font-size: 50px;
+  max-width: 28ch;
+}
+
+.couverture-grille {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 56px;
+  align-items: center;
+  height: 100%;
+}
+
+.surtitre {
+  margin: 0 0 18px;
+  color: var(--pluie-4);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.couverture .surtitre {
+  color: var(--pluie-2);
+}
+
+.reveal.studio-deck .slides section.couverture {
+  background: var(--nuit);
+  color: #d9e2ea;
+}
+
+.reveal.studio-deck .couverture h1 {
+  color: #fff;
+}
+
+.question {
+  max-width: 34ch;
+  margin: 0 0 40px;
+  font-size: 30px;
+  line-height: 1.35;
+}
+
+.couverture-calendrier .legende,
+.couverture-calendrier .etiquette-annee {
+  color: #9fb0c0;
+  fill: #9fb0c0;
+}
+
+.couverture .couverture-calendrier {
+  --sec: #22344a;
+}
+
+.reponse {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 48px;
+  align-items: center;
+  margin-top: 40px;
+}
+
+.grand-chiffre {
+  font-family: var(--titre);
+  font-size: 210px;
+  font-weight: 500;
+  line-height: 0.9;
+  color: var(--pluie-4);
+}
+
+.reponse p,
+.constat,
+.constat p {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.4;
+  color: var(--encre);
+}
+
+.constat .discret {
+  margin-top: 24px;
+  font-size: 22px;
+  color: var(--discret);
+}
+
+.deux-colonnes {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr);
+  gap: 64px;
+  align-items: start;
+}
+
+/* Les graphiques sont dimensionnés en rem pour une page : on les agrandit sur le canevas 1440 × 810. */
+.reveal.studio-deck section:not(.couverture) .graphique {
+  zoom: 1.45;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.reveal.studio-deck .mois-colonne {
+  grid-template-rows: 200px;
+}
+
+.reglage-direct {
+  zoom: 1.6;
+  --marimo-cell-font: var(--corps);
+  --marimo-cell-accent: var(--pluie-4);
+}
+
+.memo {
+  display: grid;
+  gap: 22px;
+  margin: 0;
+}
+
+.memo div {
+  padding-top: 12px;
+  border-top: 2px solid var(--encre);
+}
+
+.memo dt {
+  color: var(--discret);
+  font-size: 18px;
+}
+
+.memo dd {
+  margin: 4px 0 0;
+  font-family: var(--titre);
+  font-size: 40px;
+  color: var(--encre);
+}
+
+.methode {
+  margin: 0;
+  padding-left: 1.1em;
+  font-size: 28px;
+  line-height: 1.6;
+}
+
+.pied-diapo {
+  position: absolute;
+  left: 84px;
+  right: 84px;
+  bottom: 30px;
+  display: flex;
+  justify-content: space-between;
+  margin: 0;
+  color: var(--discret);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+
+.attente,
+.erreur {
+  padding: 3rem;
+  font-family: var(--corps);
+  font-size: 1.2rem;
+}
+
+marimo-cell {
+  --marimo-cell-font-size: 1em;
+  display: block;
+  min-width: 0;
+}
+
+/* Lecture verticale sur téléphone : les mêmes diapositives, à la suite. */
+.lecteur {
+  padding: 1.25rem 1rem 3rem;
+  font-family: var(--corps);
+  color: var(--texte);
+}
+
+.lecteur section {
+  position: relative;
+  padding: 1.6rem 0 2.4rem;
+  border-bottom: 1px solid var(--filet);
+}
+
+.lecteur section.couverture {
+  margin: -1.25rem -1rem 0;
+  padding: 2rem 1rem;
+  background: var(--nuit);
+  color: #d9e2ea;
+}
+
+.lecteur h1,
+.lecteur h2 {
+  margin: 0 0 1rem;
+  font-family: var(--titre);
+  font-weight: 650;
+  line-height: 1.1;
+  color: var(--encre);
+}
+
+.lecteur h1 {
+  font-size: 2.4rem;
+  color: #fff;
+}
+
+.lecteur h2 {
+  font-size: 1.45rem;
+}
+
+.lecteur .question,
+.lecteur .reponse p,
+.lecteur .constat {
+  font-size: 1.05rem;
+}
+
+.lecteur .couverture-grille,
+.lecteur .reponse,
+.lecteur .deux-colonnes {
+  display: block;
+}
+
+.lecteur .grand-chiffre {
+  font-size: 4.5rem;
+}
+
+.lecteur .memo dd {
+  font-size: 1.6rem;
+}
+
+.lecteur .methode {
+  font-size: 1rem;
+}
+
+.lecteur .pied-diapo {
+  position: static;
+  margin-top: 1.2rem;
+  font-size: 0.75rem;
+}
+
+.lecteur .graphique {
+  margin-top: 1rem;
+}
+
+.lecteur .reglage-direct {
+  zoom: 1;
+  margin-bottom: 1rem;
+}
+
+.lecteur .mois-colonne {
+  grid-template-rows: 9rem;
+}
+
+.lecteur .mois-valeur,
+.lecteur .mois-nom {
+  font-size: 0.6rem;
+}
+
+.lecteur .calendrier svg {
+  min-width: 34rem;
+}
+
+.lecteur .intensite-entete,
+.lecteur .intensite-ligne {
+  grid-template-columns: 6.5rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.reveal.studio-deck .controls,
+.reveal.studio-deck .progress {
+  color: var(--pluie-4);
+}

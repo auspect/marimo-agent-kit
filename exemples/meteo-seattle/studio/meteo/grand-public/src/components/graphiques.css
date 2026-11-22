@@ -1,0 +1,221 @@
+/* Graphiques partagés : copie identique dans chaque vue qui les utilise. */
+
+:root {
+  --sec: #e6e1d6;
+  --pluie-1: #d3e3f3;
+  --pluie-2: #93b9df;
+  --pluie-3: #5389c6;
+  --pluie-4: #2b5f9f;
+  --pluie-5: #163866;
+  --volume: #c8553d;
+}
+
+.graphique {
+  margin: 0;
+  min-width: 0;
+}
+
+.graphique svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.etiquette-annee {
+  fill: var(--discret);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.defilement {
+  overflow-x: auto;
+}
+
+.mois {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.35rem;
+  align-items: end;
+  border-bottom: 1px solid var(--encre);
+}
+
+.mois-colonne {
+  display: grid;
+  grid-template-rows: 12rem;
+  justify-items: center;
+  position: relative;
+  padding-top: 1.4rem;
+}
+
+.mois-valeur {
+  position: absolute;
+  bottom: calc(100% + 0.3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--encre);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mois-piste {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 100%;
+}
+
+.mois-piste .barre {
+  position: relative;
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--pluie-2);
+}
+
+.mois-piste .barre.forte {
+  background: var(--pluie-4);
+}
+
+.mois-nom {
+  position: absolute;
+  bottom: -1.5rem;
+  color: var(--discret);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.mois {
+  margin-bottom: 1.6rem;
+}
+
+.legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--discret);
+  font-size: 0.82rem;
+}
+
+.legende li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.legende span {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 2px;
+}
+
+.intensite-entete,
+.intensite-ligne {
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.intensite-entete {
+  margin-bottom: 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.cle.jours {
+  color: var(--pluie-4);
+}
+
+.cle.volume {
+  color: var(--volume);
+}
+
+.intensite-ligne {
+  padding-block: 0.45rem;
+  border-bottom: 1px solid var(--filet);
+}
+
+.intensite-classe {
+  color: var(--encre);
+  font-size: 0.92rem;
+}
+
+.piste {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.piste b {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--encre);
+  min-width: 3ch;
+}
+
+.jauge {
+  height: 0.85rem;
+  border-radius: 2px;
+}
+
+.jauge.jours {
+  background: var(--pluie-3);
+}
+
+.jauge.volume {
+  background: var(--volume);
+}
+
+.annees {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.annee {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1fr) 5.5rem;
+  grid-template-areas: "nom piste valeur" ". jours jours";
+  gap: 0.1rem 0.9rem;
+  align-items: center;
+  opacity: 0.45;
+}
+
+.annee.active {
+  opacity: 1;
+}
+
+.annee-nom {
+  grid-area: nom;
+  font-weight: 600;
+  color: var(--encre);
+}
+
+.annee-piste {
+  grid-area: piste;
+  height: 1.1rem;
+  background: var(--sec);
+  border-radius: 2px;
+}
+
+.annee-piste span {
+  display: block;
+  height: 100%;
+  background: var(--pluie-4);
+  border-radius: 2px;
+}
+
+.annee-valeur {
+  grid-area: valeur;
+  text-align: right;
+  font-weight: 600;
+  color: var(--encre);
+}
+
+.annee-jours {
+  grid-area: jours;
+  color: var(--discret);
+  font-size: 0.82rem;
+}

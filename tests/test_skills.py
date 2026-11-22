@@ -1,6 +1,8 @@
+import importlib.util
 import json
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -77,6 +79,89 @@ class DocWigglystuff(unittest.TestCase):
         page = en_texte("tangledistribution", verifier_installe=False)
         self.assertIn('params: Optional[Dict[str, float]]', page)
         self.assertIn("n'est pas dans", en_texte("Inexistant", verifier_installe=False))
+
+
+class StudioVues(unittest.TestCase):
+    """Le skill marimo-studio-vues, sa doc recopiée et l'exemple qui lui sert de preuve."""
+
+    SKILL = dossier_skill("marimo-studio-vues")
+    EXEMPLE = RACINE / "exemples" / "meteo-seattle"
+
+    def version(self) -> str:
+        source = (self.SKILL / "references" / "SOURCE.md").read_text(encoding="utf-8")
+        return re.search(r"marimo-studio (\d+\.\d+\.\d+)", source).group(1)
+
+    def test_doc_recopiee_avec_sa_source_et_sa_licence(self):
+        references = self.SKILL / "references"
+        source = (references / "SOURCE.md").read_text(encoding="utf-8")
+        self.assertTrue((references / "LICENSE-marimo-studio").exists())
+        pages = sorted((references / "docs").rglob("*.md"))
+        self.assertEqual(f"{len(pages)} pages", re.search(r"(\d+ pages)", source).group(1))
+        for page in pages:
+            with self.subTest(page=page.name):
+                self.assertTrue(page.read_text(encoding="utf-8").startswith(f"<!-- marimo-studio {self.version()}, recopié de"))
+        self.assertIn("importer_marimo_studio.py", source)
+        self.assertTrue((RACINE / "outils" / "importer_marimo_studio.py").exists())
+
+    def test_une_seule_version_de_studio(self):
+        version = self.version()
+        self.assertIn(f"marimo-studio {version}", (self.SKILL / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertIn(f'version = "=={version}"', (self.EXEMPLE / "pixi.toml").read_text(encoding="utf-8"))
+        self.assertIn(f'"marimo-studio[deno,typst]=={version}"', (self.EXEMPLE / "meteo.py").read_text(encoding="utf-8"))
+
+    def test_exemple_a_quatre_vues_de_formats_differents(self):
+        vues = {p.parent.name: p.read_text(encoding="utf-8") for p in (self.EXEMPLE / "studio" / "meteo").glob("*/view.toml")}
+        self.assertEqual(set(vues), {"grand-public", "briefing", "rapport", "article"})
+        self.assertIn("marimo-studio/react", vues["grand-public"])
+        self.assertIn("marimo-studio/react", vues["briefing"])
+        self.assertIn("marimo-studio/typst", vues["rapport"])
+        self.assertIn("marimo-studio/quarto", vues["article"])
+        self.assertIn("@revealjs/react", (self.EXEMPLE / "studio" / "meteo" / "briefing" / "deno.json").read_text(encoding="utf-8"))
+        for nom in vues:
+            with self.subTest(vue=nom):
+                self.assertTrue((self.EXEMPLE / "studio" / "meteo" / nom / "DESIGN.md").exists())
+
+    def test_composants_partages_identiques(self):
+        vues = self.EXEMPLE / "studio" / "meteo"
+        for relatif in ("src/components/Graphiques.tsx", "src/components/graphiques.css", "src/lib/format.ts", "src/lib/donnees.ts"):
+            with self.subTest(fichier=relatif):
+                self.assertEqual((vues / "grand-public" / relatif).read_bytes(), (vues / "briefing" / relatif).read_bytes())
+
+    def charger(self, nom: str):
+        spec = importlib.util.spec_from_file_location(nom, self.SKILL / "scripts" / f"{nom}.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_controle_des_vues_de_l_exemple(self):
+        rapport = self.charger("controler_vues").controler(self.EXEMPLE / "meteo.py")
+        self.assertEqual(rapport["erreurs"], 0, rapport["constats"])
+        self.assertEqual(rapport["formats"], ["marimo-studio/quarto", "marimo-studio/react", "marimo-studio/typst"])
+
+    def test_controle_signale_le_gabarit_et_les_chiffres(self):
+        with tempfile.TemporaryDirectory() as dossier:
+            notebook = Path(dossier) / "analyse.py"
+            notebook.write_text("import marimo\n", encoding="utf-8")
+            vue = Path(dossier) / "studio" / "analyse" / "tableau"
+            (vue / "src").mkdir(parents=True)
+            (vue / "view.toml").write_text('schema = 1\nprovider = "marimo-studio/react"\n', encoding="utf-8")
+            (vue / "AGENTS.md").write_text("## Project intent\n\nKeep this section current with the user's audience.\n", encoding="utf-8")
+            (vue / "src" / "App.tsx").write_text(
+                'export const App = () => (\n  <main>\n    <marimo-cell name="cell-3" />\n    <p>Il pleut 35 % des jours.</p>\n  </main>\n);\n',
+                encoding="utf-8")
+            rapport = self.charger("controler_vues").controler(notebook)
+        messages = " ".join(c["message"] for c in rapport["constats"])
+        self.assertGreaterEqual(rapport["erreurs"], 1)
+        self.assertIn("cell-N", messages)
+        self.assertIn("DESIGN.md", messages)
+        self.assertIn("« 35 % »", messages)
+        self.assertIn("Project intent", messages)
+
+    def test_scripts_valides(self):
+        for script in (self.SKILL / "scripts" / "capturer.py", self.SKILL / "scripts" / "controler_vues.py",
+                       self.EXEMPLE / "diapos_pptx.py", RACINE / "outils" / "importer_marimo_studio.py"):
+            with self.subTest(script=script.name):
+                compile(script.read_text(encoding="utf-8"), str(script), "exec")
 
 
 if __name__ == "__main__":

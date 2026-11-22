@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ICI = Path(__file__).resolve().parent
-SKILLS = ("marimo-agent-kit", "wigglystuff", "marimo-lens")
+SKILLS = ("marimo-agent-kit", "wigglystuff", "marimo-lens", "marimo-studio-vues")
 
 
 def dossier_skills() -> Path:
