@@ -144,6 +144,21 @@ class Installateur(unittest.TestCase):
                 self.assertEqual(marimo["mcp"]["mcpServers"]["marimo_agent_kit"]["args"], ["--from", "/kit", "mak", "mcp"])
                 self.assertEqual(marimo["package_management"]["manager"], "pixi")
 
+    def test_mak_dans_l_environnement_pixi_se_lance_par_pixi_run(self):
+        with tempfile.TemporaryDirectory() as dossier:
+            dossier = Path(dossier)
+            (dossier / "pyproject.toml").write_text(
+                '[project]\nname = "x"\nversion = "0"\n[tool.pixi.workspace]\nchannels = ["conda-forge"]\n', encoding="utf-8")
+            scripts = dossier / ".pixi" / "envs" / "default" / "Scripts"
+            scripts.mkdir(parents=True)
+            (scripts / "mak.exe").write_bytes(b"")
+            installer(dossier, None, True, "claude", True, appliquer=True)
+            reglages = json.loads((dossier / ".claude" / "settings.json").read_text(encoding="utf-8"))
+            self.assertEqual(reglages["hooks"]["SessionStart"][0]["hooks"][0]["command"], "pixi run mak hook")
+            serveur = json.loads((dossier / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["marimo_agent_kit"]
+            self.assertEqual((serveur["command"], serveur["args"]), ("pixi", ["run", "mak", "mcp"]))
+            self.assertIn('command = "pixi"\nargs = ["run", "mak", "mcp"]', (dossier / "pyproject.toml").read_text(encoding="utf-8"))
+
     def test_gestionnaire_du_bouton_d_installation(self):
         cas = {"[tool.pixi.workspace]\nchannels = ['conda-forge']\n": "pixi", "[tool.uv]\npackage = false\n": "uv",
                "": "pixi"}

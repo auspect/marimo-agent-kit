@@ -143,6 +143,13 @@ def _executable(environnement: Path, nom: str) -> Path | None:
     return next((c for c in candidats if c.is_file()), None)
 
 
+def dans_pixi(nom: str, depuis: Path | None = None) -> bool:
+    """Vrai si l'environnement pixi par défaut du projet le plus proche contient la commande `nom`."""
+    projet = trouver_projet(depuis)
+    return (projet is not None and projet.gestionnaire == "pixi"
+            and _executable(projet.manifeste.parent / ".pixi" / "envs" / "default", nom) is not None)
+
+
 def lanceur(nom: str, depuis: Path | None = None) -> list[str] | None:
     """La commande `marimo` ou `python` de l'environnement du projet qui contient marimo.
 

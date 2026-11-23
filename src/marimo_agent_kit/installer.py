@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Literal
 
 from .contrat import contrat_court, reference_regles
-from .environnement import trouver_projet
+from .environnement import dans_pixi, trouver_projet
 from .ressources import SKILLS, dossier_skill
 
 ICI = Path(__file__).resolve().parent
@@ -23,9 +23,16 @@ class Action:
     detail: str = ""
 
 
-def commande_mak(source: str | None = None) -> list[str]:
+def commande_mak(source: str | None = None, dossier: Path | None = None) -> list[str]:
+    """La commande que les hooks et le serveur MCP lanceront plus tard, hors de ce processus.
+
+    Un `mak` installé dans l'environnement pixi du projet n'est sur le PATH que sous `pixi run` :
+    les hooks et l'assistant le lancent donc par `pixi run`, depuis le dossier du projet.
+    """
     if source:
         return ["uvx", "--from", source, "mak"]
+    if dans_pixi("mak", dossier):
+        return ["pixi", "run", "mak"]
     if shutil.which("mak"):
         return ["mak"]
     racine = ICI.parent.parent
@@ -89,7 +96,7 @@ def poser_marimo(dossier: Path, appliquer: bool, source: str | None = None) -> l
     pyproject = dossier / "pyproject.toml"
     projet = trouver_projet(dossier)
     gestionnaire = "uv" if projet is not None and projet.gestionnaire == "uv" else "pixi"
-    bloc = bloc_marimo(commande_mak(source), gestionnaire)
+    bloc = bloc_marimo(commande_mak(source, dossier), gestionnaire)
     if not pyproject.exists():
         return [Action("pyproject.toml", "à compléter à la main",
                        "marimo ne lit sa configuration de projet que dans pyproject.toml. `pixi init --format pyproject` "
@@ -136,7 +143,7 @@ def _hooks_poses(chemin: Path, commande: str) -> bool:
 
 
 def poser_hooks(dossier: Path, appliquer: bool, source: str | None = None, cible: str = "claude") -> list[Action]:
-    commande = " ".join([*commande_mak(source), "hook"])
+    commande = " ".join([*commande_mak(source, dossier), "hook"])
     autre = next(c for c in FICHIERS_HOOKS if c != cible)
     if _hooks_poses(dossier / FICHIERS_HOOKS[autre], commande):
         return [Action(FICHIERS_HOOKS[cible], "à compléter à la main",
@@ -181,7 +188,7 @@ def _hooks_copilot(donnees: dict, commande: str) -> bool:
 
 
 def poser_mcp(dossier: Path, appliquer: bool, source: str | None = None) -> list[Action]:
-    commande = commande_mak(source)
+    commande = commande_mak(source, dossier)
 
     def modifier(donnees: dict) -> bool:
         serveurs = donnees.setdefault("mcpServers", {})

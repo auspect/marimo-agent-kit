@@ -120,6 +120,18 @@ pixi init --format pyproject
 pixi add marimo
 ```
 
+Le kit peut aussi vivre dans le projet, sans rien installer ailleurs. Depuis un clone du dépôt,
+ajoute-le à l'environnement pixi, puis lance `mak` par `pixi run` :
+
+```bash
+pixi add --pypi marimo-agent-kit --path chemin/vers/marimo-agent-kit
+pixi run mak installer --skill agents --marimo --hooks
+```
+
+L'installateur écrit alors `pixi run mak` dans les hooks et pour le serveur MCP, car ce `mak`
+n'est sur le PATH que sous `pixi run`. Ajoute `--editable` à `pixi add` pour suivre les
+modifications du clone.
+
 Dans le projet, l'installateur affiche d'abord ce qu'il ferait :
 
 ```bash
