@@ -67,6 +67,57 @@ section « Add dependencies » de l'`AGENTS.md` de la vue : la mise à jour de `
   de faire déborder la page.
 - Les bornes et les libellés des classes viennent du notebook ; la vue n'a que les couleurs.
 
+## Tableau de bord : ce qui le distingue d'une page
+
+Une page se lit de haut en bas. Un tableau de bord se manipule : le lecteur compare, trie,
+choisit un élément et le situe. Quatre patrons, pris d'un essai sur le mix électrique européen
+(un tableau de pays par année). Le notebook calcule ; le navigateur ne fait que trier, filtrer et
+sélectionner parmi les lignes déjà projetées, donc sans état préparé de plus.
+
+**Cartes d'indicateurs.** Trois ou quatre cartes en tête : une valeur, son unité, et son écart à
+une référence (« −18 % depuis 2015 »). Valeurs et écarts viennent d'un dictionnaire du notebook,
+par exemple `kpi` ; la vue ne calcule pas l'écart. Chiffres en `font-variant-numeric:
+tabular-nums`.
+
+**Classement cliquable.** Un tableau dont chaque en-tête trie, et dont chaque ligne sélectionne :
+
+```tsx
+const [tri, setTri] = useState<{ col: Colonne; asc: boolean }>({ col: "intensite", asc: true });
+const [choisi, setChoisi] = useState<string | null>(null);
+const basculer = (col: Colonne) => setTri((t) => (t.col === col ? { col, asc: !t.asc } : { col, asc: true }));
+
+<th aria-sort={tri.col === "intensite" ? (tri.asc ? "ascending" : "descending") : "none"}>
+  <button type="button" onClick={() => basculer("intensite")}>gCO2/kWh</button>
+</th>
+<tr className={l.pays === actif?.pays ? "selectionne" : ""}>
+  <td><button type="button" onClick={() => setChoisi(l.pays)}>{l.pays}</button></td>
+```
+
+Le bouton dans la cellule rend la sélection accessible au clavier. Par défaut, la ligne active
+est la première du classement : le panneau de détail n'est jamais vide.
+
+**Filtre côté navigateur.** Un bouton à bascule (`aria-pressed`) qui restreint les lignes déjà
+là, sans relancer le notebook, et nommé comme tel (« Filtre de la page ») pour ne pas le
+confondre avec un contrôle du notebook. Son seuil vient du notebook, comme tout chiffre. Prévois
+l'état vide : « Aucun pays ne correspond au filtre. »
+
+```tsx
+const visibles = useMemo(() => {
+  const lignes = filtre ? pays.filter((p) => p.bas_carbone_pct >= d.seuils.bas_carbone) : pays;
+  return [...lignes].sort((a, b) => (tri.asc ? 1 : -1) * comparer(a[tri.col], b[tri.col]));
+}, [pays, filtre, tri, d.seuils]);
+const actif = visibles.find((p) => p.pays === choisi) ?? visibles[0] ?? null;
+```
+
+**Comparer la sélection à une moyenne.** Le graphique principal trace la série de l'élément
+choisi contre la moyenne du périmètre, que le notebook projette en tableau à part
+(`serie_moyenne`), avec la même échelle et les mêmes unités ; une fiche à côté donne les écarts
+de l'élément à cette moyenne. Changer de ligne change la courbe et la fiche, sans aller-retour au
+noyau.
+
+Contrôle à la capture : trier, cliquer une ligne, activer le filtre, et vérifier que le titre du
+panneau de détail, la courbe et la fiche suivent.
+
 ## Lens et traçabilité
 
 Chaque région dessinée par la vue déclare ses entrées, un libellé et sa source de rendu :

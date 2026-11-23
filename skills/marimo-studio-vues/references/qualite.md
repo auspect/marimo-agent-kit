@@ -18,6 +18,20 @@ autres demandent une construction, une capture ou un export.
 | 11 | États de chargement et d'erreur | La vue affiche un message pendant `aria-busy="true"` et un `role="alert"` en cas d'erreur de valeur |
 | 12 | Traçable | Les régions dessinées portent `data-marimo-lens-inputs`, un libellé et une source de rendu ; les PDF Typst, des `marimo_region()` |
 | 13 | Construite, validée, sans erreur | `view build` réussi, `validate --level static` en `PASS`, `etat_studio` à `ready` et `erreurs_console` vide dans le rapport de `capturer.py` |
-| 14 | Chaque export ouvert et regardé | Site servi en HTTP et capturé avec un contrôle changé ; PDF et PPTX ouverts, page par page |
+| 14 | Chaque export ouvert et regardé | Site servi en HTTP et capturé avec un contrôle changé ; PDF et PPTX ouverts, page par page ; page autonome ouverte en `file://` avec `capturer.py --hors-ligne`, `requetes_bloquees` vide |
+| 15 | Hiérarchie au premier écran | À 1280 × 800, sans défiler : le titre-réponse, le périmètre actif (période, seuil, zone) et l'objet principal ; pour un tableau de bord, aussi les cartes d'indicateurs |
+| 16 | Chiffres alignés | `font-variant-numeric: tabular-nums` sur les indicateurs, tableaux et légendes ; unité et période écrites à côté de chaque chiffre |
+
+Un tableau de bord, en plus des seize critères :
+
+| # | Critère | Comment le contrôler |
+|---|---|---|
+| T1 | Trois ou quatre cartes d'indicateurs, chacune avec son écart à une référence venu du notebook | Lis la capture ; `controler_vues.py` ne signale aucun chiffre écrit dans la vue |
+| T2 | Un classement qui se trie par colonne et dont une ligne se sélectionne au clavier | Capture après un clic sur un en-tête puis sur une ligne : l'ordre et le panneau de détail changent |
+| T3 | Un filtre de page, nommé comme tel, avec un état vide | Capture filtre actif ; le seuil du filtre vient du notebook |
+| T4 | La sélection se compare à une moyenne du périmètre, à la même échelle | La courbe de l'élément choisi et celle de la moyenne sont sur le même graphique |
+
+`references/react.md` donne les quatre patrons. Une page grand public ou un diaporama n'en a
+pas besoin : un tri ou une sélection sans tâche de lecteur derrière ne fait qu'ajouter du bruit.
 
 Un critère non vérifié se dit comme tel dans le compte rendu, avec la raison.
