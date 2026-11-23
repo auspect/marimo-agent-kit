@@ -22,22 +22,37 @@ un contrôle charge l'état préparé qui correspond.
    ```
 
    Cette matrice prépare 15 états. Sans `states.yaml`, seul l'état initial est préparé.
+   Les états se numérotent à partir de `matrix-000000`, dans l'ordre du produit des listes, la
+   dernière clé variant le plus vite : `matrix-000000` vaut Toutes × 0,1 mm, `matrix-000001`
+   Toutes × 1 mm. `default_state` nomme donc l'état qui reprend les valeurs par défaut du
+   notebook ; l'export de l'exemple s'ouvre bien sur Toutes et 1 mm. Pour éviter le calcul,
+   nomme les états avec `states:` (`references/docs/guide/run-and-share.md`).
 
-2. Exporte :
+2. Exporte, une vue à la fois, vers un dossier court réel :
 
    ```bash
    pixi run marimo-studio view export grand-public --target notebook.py --output "$HOME/.mxo/grand-public" --prepare-timeout 300 --force
    ```
 
-   Durées mesurées : 25 s à 1 min 35 s par vue, 15 états compris. Le site de la page React pèse
-   21 Mo pour 264 fichiers.
+   Durées mesurées : 35 s à 1 min 50 s par vue, 15 états compris. Chaque site pèse 21 à 22 Mo
+   pour environ 260 fichiers.
 
-3. Sers le dossier en HTTP et vérifie-le comme une vue en direct, contrôle changé compris :
+   Pendant l'export, ne modifie aucun fichier du dossier du projet et ne lance pas un second
+   export : Studio refuse alors l'export avec `the notebook source or runtime changed after
+   export preflight`, constaté ici deux fois pour un fichier modifié à côté du notebook. Un
+   lecteur `subst` ne fait pas un dossier court : Studio résout le vrai chemin, et un essai a vu
+   `prepared export materialization failed: [Errno 2]`.
+
+3. La commande finie, sers le dossier en HTTP et vérifie-le comme une vue en direct, contrôle
+   changé compris. Lance les captures l'une après l'autre, jamais pendant une copie du dossier :
 
    ```bash
    uv run --no-project python -m http.server --bind 127.0.0.1 2792 --directory $HOME/.mxo
-   uv run --no-project --with playwright python scripts/capturer.py http://127.0.0.1:2792/grand-public/ --sortie export.png --choisir 0=2013 --choisir "1=5 mm" --attendre-texte "En 2013"
+   uv run --no-project --with playwright python scripts/capturer.py http://127.0.0.1:2792/grand-public/ --hors-ligne --sortie export.png --attendre ".graphique" --choisir 2013 --choisir "5 mm" --attendre-texte "En 2013"
    ```
+
+4. Partage le dossier hors du dépôt, sur un hébergement statique ou en archive : à 21 Mo, le
+   hook `check-added-large-files` du dépôt le refuse, et c'est voulu.
 
 Ce que l'on obtient, et ce que l'on n'obtient pas :
 
@@ -47,7 +62,10 @@ Ce que l'on obtient, et ce que l'on n'obtient pas :
   (`Access to script at 'file:///.../zero-python.js' from origin 'null' has been blocked by CORS
   policy`). Studio 0.4.1 ne produit pas de page HTML en un seul fichier : la section suivante
   en donne une.
-- Le site n'est pas hors ligne : polices Google et scripts distants restent des requêtes.
+- Le site ne charge que ce qu'il contient si la vue ne cite rien d'extérieur. Servis en HTTP
+  avec `capturer.py --hors-ligne`, les quatre exports de l'exemple n'ont demandé aucun autre
+  hôte. Une police Google, une carte ou un script distant resterait une requête : le thème
+  `cosmo` de Quarto importe Source Sans Pro tant que `$web-font-path: false` ne le coupe pas.
 - Limite des valeurs JSON : un état ne peut pas porter une liste de 1 461 objets. L'erreur est
   `exceeds the maximum JSON value count`. Projette la série en DataFrame, elle voyage en Arrow.
 - Sous Windows, régle d'abord les chemins (`references/environnement.md`), et exporte vers un
@@ -81,7 +99,7 @@ Modèle : `exemples/meteo-seattle/page_autonome.py`, 135 lignes.
 
 ```bash
 pixi run python page_autonome.py
-uv run --no-project --with playwright python scripts/capturer.py "file:///C:/.../dist/page/meteo.html" --studio non --hors-ligne --choisir 0=2014 --choisir "1=5 mm" --attendre-texte "En 2014" --sortie page-2014.png
+uv run --no-project --with playwright python scripts/capturer.py "file:///C:/.../dist/page/meteo.html" --studio non --hors-ligne --choisir 2014 --choisir "5 mm" --attendre-texte "En 2014" --sortie page-2014.png
 ```
 
 Sur l'exemple : 15 états en 13 s, un fichier de 0,4 Mo. Ouvert en `file://` avec toute requête

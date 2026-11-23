@@ -10,6 +10,8 @@ Studio, puis `--attendre`, un sélecteur CSS propre à la vue, comme un graphiqu
 sur la sortie standard l'état Studio, la révision affichée et les erreurs de la console : une
 capture seule ne prouve pas que la vue a reçu ses valeurs.
 
+`--choisir 2014` choisit l'option « 2014 » dans le seul menu déroulant qui la propose, Shadow DOM
+des contrôles projetés compris : l'ordre des menus change d'une vue à l'autre, le libellé non.
 `--hors-ligne` bloque toute requête vers un autre hôte que celui de la page, toutes pour une page
 ouverte en `file://`, et les rend dans `requetes_bloquees`.
 """
@@ -20,7 +22,22 @@ import argparse
 import base64
 import json
 import sys
+import time
 from urllib.parse import urlsplit
+
+
+class OptionAbsente(ValueError):
+    """Aucun menu ne propose l'option : la vue n'a peut-être pas encore reçu ses valeurs."""
+
+
+def menu_pour(menus: list[list[str]], option: str) -> int:
+    """Rang du seul menu qui propose `option` ; `menus` donne les libellés des options de chaque menu."""
+    rangs = [rang for rang, options in enumerate(menus) if option in options]
+    if len(rangs) == 1:
+        return rangs[0]
+    if not rangs:
+        raise OptionAbsente(f"aucun menu ne propose « {option} ». Menus vus : {menus}")
+    raise ValueError(f"plusieurs menus proposent « {option} » (rangs {rangs}) : choisis une option propre à un menu")
 
 
 def hors_page(url_page: str, url: str) -> bool:
@@ -29,6 +46,20 @@ def hors_page(url_page: str, url: str) -> bool:
     if cible.scheme in ("data", "blob", "file", "about"):
         return False
     return urlsplit(url_page).scheme == "file" or cible.netloc != urlsplit(url_page).netloc
+
+
+def choisir(page, option: str, delai: float) -> None:
+    fin = time.monotonic() + delai
+    while True:
+        menus = page.locator("select").evaluate_all("ms => ms.map(m => [...m.options].map(o => o.label.trim()))")
+        try:
+            rang = menu_pour(menus, option)
+            break
+        except OptionAbsente:
+            if time.monotonic() > fin:
+                raise
+            page.wait_for_timeout(250)
+    page.locator("select").nth(rang).select_option(label=option)
 
 
 def ouvrir_navigateur(playwright, canal: str | None):
@@ -52,9 +83,9 @@ def main() -> int:
     parser.add_argument("--largeur", type=int, default=1280)
     parser.add_argument("--hauteur", type=int, default=900)
     parser.add_argument("--attendre", help="sélecteur CSS à attendre en plus de l'état Studio")
-    parser.add_argument("--choisir", action="append", default=[], metavar="RANG=OPTION",
-                        help="choisir OPTION dans la liste déroulante numéro RANG (0 pour la première), "
-                             "comme un lecteur qui change un contrôle du notebook")
+    parser.add_argument("--choisir", action="append", default=[], metavar="OPTION",
+                        help="choisir OPTION dans le seul menu déroulant qui la propose, comme un lecteur qui "
+                             "change un contrôle du notebook ; échoue si aucun menu ou plusieurs la proposent")
     parser.add_argument("--hors-ligne", action="store_true",
                         help="bloquer les requêtes vers un autre hôte que la page, et les lister")
     parser.add_argument("--attendre-texte", help="texte qui doit apparaître après les choix")
@@ -109,9 +140,8 @@ def main() -> int:
                 page.wait_for_selector(args.attendre, timeout=args.delai * 1000)
             except Error:
                 attente_echouee = args.attendre
-        for choix in args.choisir:
-            rang, _, option = choix.partition("=")
-            page.locator("select").nth(int(rang)).select_option(label=option)
+        for option in args.choisir:
+            choisir(page, option, args.delai)
             page.wait_for_timeout(500)
         if args.attendre_texte:
             page.get_by_text(args.attendre_texte).filter(visible=True).first.wait_for(timeout=args.delai * 1000)

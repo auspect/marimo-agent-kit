@@ -54,6 +54,24 @@ return (
 - Thème des sorties natives : variables CSS sur l'hôte, comme `--marimo-cell-font` et
   `--marimo-cell-accent`.
 
+### Les nombres d'un tableau Arrow
+
+Une colonne entière `Int64` de polars peut arriver en `BigInt` JavaScript dans l'export Prepared
+alors qu'elle arrivait en nombre en direct. `Math.max(...)` ou une division lèvent alors
+`TypeError: Cannot convert a BigInt value to a number`, dans l'export seulement (constaté sur un
+essai du skill avec gapminder). Deux parades, la première d'abord :
+
+- dans le notebook, projette des types sans ambiguïté : `pl.col("pop").cast(pl.Float64)`, ou
+  `pl.Int32` pour un compte ;
+- dans la vue, convertis à la frontière, une fois, avant tout calcul :
+
+  ```tsx
+  const lignes = (pays.value?.toArray() ?? []).map((r) => ({ ...r, pop: Number(r.pop), annee: Number(r.annee) }));
+  ```
+
+Exporte une première fois dès que la vue lit un tableau Arrow, et regarde l'export servi en HTTP
+(`references/exports.md`) : le direct ne prouve rien pour le Prepared.
+
 ## Graphiques
 
 L'exemple dessine ses graphiques en SVG et en CSS, sans bibliothèque : un calendrier d'un carré

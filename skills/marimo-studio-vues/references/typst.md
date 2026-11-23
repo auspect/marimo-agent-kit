@@ -81,3 +81,12 @@ pixi run typst compile main.typ rapport-sans-valeurs.pdf
 Avec le Typst de conda-forge, depuis le dossier de la vue. Le PDF ne contient que les valeurs par
 défaut : il sert à vérifier la mise en page d'attente, pas à livrer. Le PDF à livrer vient de
 l'export (`references/exports.md`).
+
+## Regarder et changer un réglage
+
+La vue Typst n'a pas de menu : son cadre ne montre que le PDF et un lien « Download ». Le PDF
+suit les contrôles du notebook. En direct, change-les dans le cadre du notebook de l'éditeur
+Studio, puis compare les deux PDF téléchargés ; `capturer.py --choisir` ne trouve rien à choisir
+dans la vue seule. Sous `marimo run`, la première composition a affiché « Rendering… » plus de
+30 s : capture avec `--pause 90`. L'export de l'exemple, sans `states.yaml`, ne contient qu'un
+PDF, celui de l'état initial.

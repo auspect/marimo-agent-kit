@@ -96,8 +96,9 @@ Ce qui marche, sans toucher au registre :
 2. `MARIMO_EXPORT_REPOSITORY` avec le préfixe de chemin étendu `\\?\`, par exemple
    `\\?\%USERPROFILE%\.mxr`. Sans ce préfixe, même un dossier court dépasse la limite : les
    états préparés s'emboîtent sur quatre niveaux d'empreintes de 64 caractères.
-3. `--output` d'un export vers un dossier court, par exemple `$HOME/.mxo/grand-public`.
-   Le préfixe `\\?\` n'est pas accepté par `--output`.
+3. `--output` d'un export vers un dossier court réel, par exemple `$HOME/.mxo/grand-public`.
+   Le préfixe `\\?\` n'est pas accepté par `--output`, et un lecteur `subst` ne raccourcit rien :
+   Studio résout le vrai chemin. Un export à la fois : un essai a vu deux exports lancés ensemble échouer.
 4. Pas de `view preflight` : `view export` fait le même contrôle avant d'écrire le dossier.
 
 Les deux variables vont dans `[tool.pixi.target.win-64.activation.env]` : pixi les pose à chaque

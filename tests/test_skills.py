@@ -166,6 +166,22 @@ class StudioVues(unittest.TestCase):
         self.assertIn("« 35 % »", messages)
         self.assertIn("Project intent", messages)
 
+    def test_capture_choisit_le_menu_par_son_option(self):
+        capturer = self.charger("capturer")
+        menus = [["France", "Japan"], ["1955", "1980", "2005"]]
+        self.assertEqual(capturer.menu_pour(menus, "1980"), 1)
+        with self.assertRaises(capturer.OptionAbsente):
+            capturer.menu_pour(menus, "1990")
+        with self.assertRaisesRegex(ValueError, "plusieurs menus"):
+            capturer.menu_pour([["1 mm", "5 mm"], ["1 mm"]], "1 mm")
+
+    def test_capture_hors_ligne_ne_bloque_que_ce_qui_sort(self):
+        capturer = self.charger("capturer")
+        self.assertTrue(capturer.hors_page("file:///C:/page.html", "https://fonts.googleapis.com/css2"))
+        self.assertFalse(capturer.hors_page("file:///C:/page.html", "data:image/png;base64,AA"))
+        self.assertFalse(capturer.hors_page("http://127.0.0.1:3312/vue/", "http://127.0.0.1:3312/vue/app.js"))
+        self.assertTrue(capturer.hors_page("http://127.0.0.1:3312/vue/", "https://cdn.exemple.org/app.js"))
+
     def test_page_autonome_montre_l_etat_initial_et_ne_charge_rien(self):
         spec = importlib.util.spec_from_file_location("page_autonome", self.EXEMPLE / "page_autonome.py")
         module = importlib.util.module_from_spec(spec)

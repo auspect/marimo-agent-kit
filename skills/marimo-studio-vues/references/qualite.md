@@ -14,7 +14,7 @@ autres demandent une construction, une capture ou un export.
 | 7 | La vue a son propre système visuel | Couleurs, polices et mise en page décrites dans `DESIGN.md`, visibles sur la capture ; pas la page grise du starter |
 | 8 | Les graphiques sont faits pour la vue | Graphiques de la vue (SVG, CSS, ou une bibliothèque), ou sorties du notebook à la bonne largeur ; pas un tableau brut à la place d'un graphique |
 | 9 | Lisible à 1280 et à 390 pixels | `capturer.py --largeur 1280` et `--largeur 390`, puis lire les images : texte lisible, contrôles utilisables, pas de débordement de page |
-| 10 | Changer un contrôle met tout à jour | `capturer.py --choisir 0=2014 --attendre-texte "En 2014"` : le texte attendu apparaît |
+| 10 | Changer un contrôle met tout à jour | `capturer.py --choisir 2014 --attendre-texte "En 2014"` : le texte attendu apparaît |
 | 11 | États de chargement et d'erreur | La vue affiche un message pendant `aria-busy="true"` et un `role="alert"` en cas d'erreur de valeur |
 | 12 | Traçable | Les régions dessinées portent `data-marimo-lens-inputs`, un libellé et une source de rendu ; les PDF Typst, des `marimo_region()` |
 | 13 | Construite, validée, sans erreur | `view build` réussi, `validate --level static` en `PASS`, `etat_studio` à `ready` et `erreurs_console` vide dans le rapport de `capturer.py` |
