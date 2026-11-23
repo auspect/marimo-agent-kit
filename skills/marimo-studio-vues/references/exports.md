@@ -45,12 +45,53 @@ Ce que l'on obtient, et ce que l'on n'obtient pas :
   `/favicon.ico`.
 - Il ne s'ouvre pas en `file://` : le navigateur bloque les modules et les feuilles de style
   (`Access to script at 'file:///.../zero-python.js' from origin 'null' has been blocked by CORS
-  policy`). Studio 0.4.1 ne produit pas de page HTML en un seul fichier.
+  policy`). Studio 0.4.1 ne produit pas de page HTML en un seul fichier : la section suivante
+  en donne une.
 - Le site n'est pas hors ligne : polices Google et scripts distants restent des requêtes.
 - Limite des valeurs JSON : un état ne peut pas porter une liste de 1 461 objets. L'erreur est
   `exceeds the maximum JSON value count`. Projette la série en DataFrame, elle voyage en Arrow.
 - Sous Windows, régle d'abord les chemins (`references/environnement.md`), et exporte vers un
   dossier court.
+
+## Page autonome qui garde l'interaction : une photo interactive
+
+Pour un fichier qu'on envoie, qu'on ouvre depuis le disque et qui marche sans réseau, la recette
+fait ce que fait l'export Prepared, en plus simple : exécuter le notebook une fois par
+combinaison des contrôles, figer chaque résultat, et laisser le navigateur choisir lequel montrer.
+Modèle : `exemples/meteo-seattle/page_autonome.py`, 135 lignes.
+
+1. Importe le notebook comme un module et exécute-le avec les valeurs par défaut :
+   `_, initial = app.run()`. `initial["annee"].options` donne les options de chaque contrôle.
+2. Pour chaque combinaison, remplace la cellule des contrôles par de vrais éléments `mo.ui`, avec
+   toutes ses définitions, sinon marimo lève `IncompleteRefsError` :
+
+   ```python
+   _, d = app.run(defs={
+       "annees_disponibles": initial["annees_disponibles"],
+       "annee": mo.ui.dropdown(options=annees, value=annee),
+       "seuil": mo.ui.dropdown(options=initial["seuil"].options, value=seuil),
+   })
+   ```
+
+3. Écris pour chaque état une `<section data-etat="2014|5 mm" hidden>` : les `messages` du
+   notebook, les chiffres clés formatés par ses fonctions, et les figures Altair en SVG par
+   `vl_convert.vegalite_to_svg(graphique.to_json())`. Échappe chaque texte (`html.escape`).
+4. Ajoute les menus et dix lignes de JavaScript qui montrent la section de l'état choisi. Styles
+   en ligne, polices du système, aucun lien vers l'extérieur.
+
+```bash
+pixi run python page_autonome.py
+uv run --no-project --with playwright python scripts/capturer.py "file:///C:/.../dist/page/meteo.html" --studio non --hors-ligne --choisir 0=2014 --choisir "1=5 mm" --attendre-texte "En 2014" --sortie page-2014.png
+```
+
+Sur l'exemple : 15 états en 13 s, un fichier de 0,4 Mo. Ouvert en `file://` avec toute requête
+réseau bloquée, la page affiche « Il pleut un jour sur 2,9 à Seattle » ; après 2014 et 5 mm,
+« Il pleut un jour sur 4,9 à Seattle », 21 %, et `requetes_bloquees` reste vide.
+
+Ce que la photo ne fait pas : elle ne connaît que les combinaisons calculées, et elle n'est pas
+une vue Studio. Elle reprend le système visuel de la vue, pas son code : une page de plus à tenir
+quand la vue change. Garde-la courte, et réserve-la aux contrôles à peu d'options ; à 10 options
+par contrôle sur trois contrôles, mille états ne tiennent plus dans un fichier.
 
 ## Site qui calcule dans le navigateur : l'export Browser
 

@@ -9,6 +9,9 @@ aucun navigateur. Il attend `html[data-marimo-studio-state="ready"]` quand la pa
 Studio, puis `--attendre`, un sélecteur CSS propre à la vue, comme un graphique dessiné. Il écrit
 sur la sortie standard l'état Studio, la révision affichée et les erreurs de la console : une
 capture seule ne prouve pas que la vue a reçu ses valeurs.
+
+`--hors-ligne` bloque toute requête vers un autre hôte que celui de la page, toutes pour une page
+ouverte en `file://`, et les rend dans `requetes_bloquees`.
 """
 
 from __future__ import annotations
@@ -17,11 +20,20 @@ import argparse
 import base64
 import json
 import sys
+from urllib.parse import urlsplit
 
-from playwright.sync_api import Error, sync_playwright
+
+def hors_page(url_page: str, url: str) -> bool:
+    """Vrai pour une requête qui sortirait du poste : un autre hôte que la page, ou tout hôte depuis `file://`."""
+    cible = urlsplit(url)
+    if cible.scheme in ("data", "blob", "file", "about"):
+        return False
+    return urlsplit(url_page).scheme == "file" or cible.netloc != urlsplit(url_page).netloc
 
 
 def ouvrir_navigateur(playwright, canal: str | None):
+    from playwright.sync_api import Error
+
     canaux = [canal] if canal else ["chrome", "msedge"]
     erreurs = []
     for nom in canaux:
@@ -43,6 +55,8 @@ def main() -> int:
     parser.add_argument("--choisir", action="append", default=[], metavar="RANG=OPTION",
                         help="choisir OPTION dans la liste déroulante numéro RANG (0 pour la première), "
                              "comme un lecteur qui change un contrôle du notebook")
+    parser.add_argument("--hors-ligne", action="store_true",
+                        help="bloquer les requêtes vers un autre hôte que la page, et les lister")
     parser.add_argument("--attendre-texte", help="texte qui doit apparaître après les choix")
     parser.add_argument("--touche", action="append", default=[],
                         help="touche à presser avant la capture, par exemple ArrowRight pour la diapositive suivante")
@@ -59,12 +73,23 @@ def main() -> int:
     if not args.sortie and not args.pdf:
         parser.error("donne --sortie, --pdf ou les deux")
 
+    from playwright.sync_api import Error, sync_playwright
+
     erreurs_console: list[str] = []
+    bloquees: list[str] = []
     with sync_playwright() as playwright:
         navigateur = ouvrir_navigateur(playwright, args.canal)
         page = navigateur.new_page(viewport={"width": args.largeur, "height": args.hauteur})
         page.on("console", lambda m: erreurs_console.append(m.text) if m.type == "error" else None)
         page.on("pageerror", lambda e: erreurs_console.append(str(e)))
+        if args.hors_ligne:
+            def filtrer(route):
+                if hors_page(args.url, route.request.url):
+                    bloquees.append(route.request.url)
+                    return route.abort()
+                return route.continue_()
+
+            page.route("**/*", filtrer)
         page.goto(args.url, wait_until="load", timeout=args.delai * 1000)
         etat = None
         if args.studio != "non":
@@ -128,6 +153,7 @@ def main() -> int:
             "diagnostics": page.evaluate(
                 "globalThis.marimoStudio?.diagnostics ? JSON.parse(JSON.stringify(marimoStudio.diagnostics())) : null"),
             "erreurs_console": erreurs_console,
+            "requetes_bloquees": bloquees,
         }
         navigateur.close()
     print(json.dumps(rapport, ensure_ascii=False, indent=2))

@@ -166,9 +166,22 @@ class StudioVues(unittest.TestCase):
         self.assertIn("« 35 % »", messages)
         self.assertIn("Project intent", messages)
 
+    def test_page_autonome_montre_l_etat_initial_et_ne_charge_rien(self):
+        spec = importlib.util.spec_from_file_location("page_autonome", self.EXEMPLE / "page_autonome.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        etats = {"Toutes|1 mm": "<h1>initial</h1>", "2014|1 mm": "<h1>2014 & <pluie></h1>"}
+        source = {"nom": "NOAA"}
+        page = module.page(etats, ["Toutes", "2014"], ["1 mm"], ("Toutes", "1 mm"), source)
+        self.assertIn('<section data-etat="Toutes|1 mm">', page)
+        self.assertIn('<section data-etat="2014|1 mm" hidden>', page)
+        self.assertIn("<option selected>Toutes</option>", page)
+        self.assertNotRegex(page, r"(src|href)=\"https?://|@import|<link")
+
     def test_scripts_valides(self):
         for script in (self.SKILL / "scripts" / "capturer.py", self.SKILL / "scripts" / "controler_vues.py",
-                       self.EXEMPLE / "diapos_pptx.py", RACINE / "outils" / "importer_marimo_studio.py"):
+                       self.EXEMPLE / "diapos_pptx.py", self.EXEMPLE / "page_autonome.py",
+                       RACINE / "outils" / "importer_marimo_studio.py"):
             with self.subTest(script=script.name):
                 compile(script.read_text(encoding="utf-8"), str(script), "exec")
 

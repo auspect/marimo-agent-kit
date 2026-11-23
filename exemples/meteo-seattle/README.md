@@ -29,12 +29,21 @@ pixi run marimo-studio view build grand-public --target meteo.py
 pixi run marimo-studio validate --target meteo.py --level static
 ```
 
-Pour exporter, vers un dossier court sous Windows :
+Pour exporter, vers un dossier court sous Windows, une vue à la fois et sans rien modifier dans
+ce dossier pendant l'export :
 
 ```bash
 pixi run marimo-studio view export grand-public --target meteo.py --output "$HOME/.mxo/grand-public" --prepare-timeout 300 --force
 pixi run python diapos_pptx.py
+pixi run python page_autonome.py
 ```
+
+| Livrable | Sortie |
+|---|---|
+| Site statique d'une vue, à servir en HTTP | `$HOME/.mxo/<vue>/` |
+| PDF du rapport | `$HOME/.mxo/rapport/_marimo-studio/views/rapport/renders/<empreinte>/main.pdf` |
+| PPTX | `dist/pptx/diapos.pptx` |
+| Page autonome, à ouvrir depuis le disque | `dist/page/meteo.html` : les 15 réglages figés, 0,4 Mo, aucune requête réseau |
 
 Le `pyproject.toml` est un projet pixi. Il installe Python 3.13, Quarto et Typst depuis
 conda-forge, et marimo-studio avec ses extras `deno` et `typst` depuis PyPI. Il dit aussi à

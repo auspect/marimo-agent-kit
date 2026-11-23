@@ -151,6 +151,7 @@ chiffre écrit dans la vue au lieu de venir du notebook.
 | PDF du rapport | Le PDF rendu dans l'export Prepared de la vue Typst | Un PDF par état préparé |
 | PDF du diaporama | `capturer.py --diapos N --pdf` sur l'export | Pages en images ; `?print-pdf` laisse des pages blanches |
 | PPTX | Script qui exécute le notebook, écrit un `.qmd`, puis `quarto render --to pptx` | Studio n'exporte pas de PPTX |
+| Page autonome interactive | Script qui exécute le notebook pour chaque réglage et fige les résultats dans un HTML | S'ouvre en `file://`, hors ligne ; les menus changent le résultat |
 | Notebook en un fichier | `marimo export html` | Un seul fichier, sans interaction |
 
 ## 8. Critères d'une restitution de qualité

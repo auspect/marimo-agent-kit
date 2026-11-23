@@ -218,7 +218,8 @@ script.
 Le skill `marimo-studio-vues` fait d'une analyse plusieurs restitutions pour des publics
 différents, avec marimo Studio 0.4.1 : une page React, un diaporama reveal.js, un rapport PDF
 Typst et un article Quarto. Il dit comment structurer le notebook pour qu'il serve toutes les
-vues, comment les construire, les regarder et les exporter en site statique, en PDF et en PPTX.
+vues, comment les construire, les regarder et les exporter en site statique, en PDF, en PPTX et
+en page autonome qui garde ses menus.
 Il donne quatorze critères de qualité et deux scripts : `capturer.py` capture une vue dans un vrai
 navigateur, `controler_vues.py` relit les sources des vues.
 
@@ -405,7 +406,8 @@ amont, avec ou sans `/v1`, n'a pas été vérifiée : la sonde le dira.
   `marimo._code_mode`, les outils de l'assistant et l'API de Studio changent d'une version à
   l'autre.
 - Studio 0.4.1 n'exporte ni PPTX, ni page interactive en un seul fichier. Le skill
-  `marimo-studio-vues` donne le chemin essayé pour chacun.
+  `marimo-studio-vues` donne un script essayé pour chacun : Quarto pour le PPTX, et une page qui
+  fige chaque réglage du notebook et s'ouvre depuis le disque, hors ligne.
 
 ## Développer
 
