@@ -22,8 +22,10 @@ saison, l'intensité, la comparaison des années, la source.
   au plus foncé (20 mm et plus). Les jours secs sont beige.
 - Le volume tombé est en terre cuite `#c8553d`, la seule couleur chaude, pour
   opposer « nombre de jours » et « volume ».
-- Fraunces pour les titres et les chiffres clés, Inter pour le texte, avec des
-  polices de repli système si Google Fonts ne répond pas.
+- Une serif de livre du système pour les titres et les chiffres clés (Iowan Old
+  Style, Palatino, URW Palladio), la police d'interface du système pour le texte.
+  Elle rappelle la Libertinus du rapport PDF, et aucune police ne se télécharge :
+  la page s'affiche pareil hors ligne et dans la page autonome.
 
 ## Interaction
 

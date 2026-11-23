@@ -84,8 +84,12 @@ même sans Lens installé.
 
 ## Polices et mise en page
 
-Les polices distantes se chargent par `<link rel="stylesheet">` dans `src/index.html`, avec une
-pile de repli dans le CSS. Un `@import` CSS de Google Fonts ne passe pas par le bundler de Deno.
+L'exemple n'utilise que des polices du système, en piles nommées dans `:root` : une serif de
+livre pour les titres (`"Iowan Old Style", "Palatino Linotype", Palatino, "URW Palladio L",
+P052, Georgia, serif`) et `system-ui` pour le texte. Rien ne se télécharge, la vue reste lisible
+hors ligne et dans la page autonome, et aucune requête ne part vers un service de polices. Une
+police distante se charge par `<link rel="stylesheet">` dans `src/index.html` ; un `@import` CSS
+ne passe pas par le bundler de Deno. Évite les paires vues partout, comme Fraunces avec Inter.
 Vérifie à 1280 et à 390 pixels : grilles qui passent en une colonne, contrôles collés en haut
 (`position: sticky`), pas de débordement horizontal de la page.
 

@@ -31,9 +31,6 @@ format:
     toc-location: left
     reference-location: margin
     page-layout: article
-    include-in-header:
-      text: |
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Inter:wght@400;500;600&display=swap">
 ```
 
 - Le thème SCSS (`/*-- scss:defaults --*/`, `/*-- scss:rules --*/`) porte les couleurs, les

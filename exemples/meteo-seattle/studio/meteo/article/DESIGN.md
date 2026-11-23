@@ -15,8 +15,9 @@ retenir et pour les limites.
 
 ## Système visuel
 
-Thème `cosmo` avec `article.scss` : fond papier `#f6f4ef`, titres Fraunces,
-texte Inter, liens et encadré principal en bleu `#2b5f9f`, avertissement en
+Thème `cosmo` avec `article.scss` : fond papier `#f6f4ef`, titres en
+serif de livre du système (Iowan Old Style, Palatino), texte en police
+d'interface du système, sans police téléchargée, liens et encadré principal en bleu `#2b5f9f`, avertissement en
 terre cuite `#c8553d`. Les valeurs insérées dans une phrase sont en gras.
 
 ## Graphiques

@@ -19,7 +19,9 @@ nomme le thème. Le pied rappelle la période et le seuil courants.
   `#f6f4ef`.
 - Mêmes bleus et même terre cuite que la page grand public : les graphiques
   sont la même copie de `src/components/`.
-- Fraunces pour les titres et les grands chiffres, Inter pour le reste.
+- Les polices du système, comme la page grand public : serif de livre (Iowan Old
+  Style, Palatino) pour les titres et les grands chiffres, police d'interface pour
+  le reste. Rien ne se télécharge, le diaporama passe hors ligne.
 
 ## Interaction
 

@@ -40,7 +40,7 @@
     )
   },
 )
-#set text(font: "Libertinus Serif", size: 10.5pt, fill: encre, lang: "fr")
+#set text(font: "Libertinus Serif", size: 10.5pt, fill: encre, lang: "fr", number-width: "tabular")
 #set par(justify: true, leading: 0.64em, spacing: 1em)
 #set heading(numbering: "1.")
 #show heading.where(level: 1): it => block(above: 1.6em, below: 0.8em, text(size: 13pt, weight: "bold", it))
